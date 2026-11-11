@@ -1,0 +1,343 @@
+openapi: 3.1.0
+info:
+  title: Luna Pages internal API
+  version: 0.1.0
+  summary: The dashboard's editor, for luna-dashboard only.
+  description: |
+    The same editor contract as `/v1/editor` (`/openapi.yaml`), for the dashboard's GrapesJS
+    editor: the dashboard proxies its developer's requests here after checking that the
+    application is theirs. Every request carries the dashboard's service token
+    (`LUNA_DASHBOARD_TOKEN` of luna-pages) in `Authorization: Bearer`; the application comes from
+    the path. nginx does not route `/internal/`.
+  license:
+    name: MIT
+    identifier: MIT
+servers:
+  - url: http://luna-pages:8080
+    description: the service network (compose, Kubernetes)
+security:
+  - serviceToken: []
+tags:
+  - name: editor
+    description: Sites, layouts, templates and pages (drafts).
+
+paths:
+  /internal/v1/apps/{app}/editor/site:
+    parameters:
+      - $ref: "#/components/parameters/AppID"
+    get:
+      tags: [editor]
+      summary: The site
+      description: The application's site with its draft project (global CSS, symbols); created empty on first use.
+      operationId: internalGetSite
+      responses:
+        "200":
+          description: The site.
+          headers: { ETag: { $ref: "#/components/headers/ETag" } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Site" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    put:
+      tags: [editor]
+      summary: Change the site
+      operationId: internalPutSite
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SiteWrite" }
+      responses:
+        "200":
+          description: The changed site.
+          headers: { ETag: { $ref: "#/components/headers/ETag" } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Site" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "412": { $ref: "#/components/responses/Precondition" }
+        "413": { $ref: "#/components/responses/TooLarge" }
+        "422": { $ref: "#/components/responses/Invalid" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /internal/v1/apps/{app}/editor/{kind}:
+    parameters:
+      - $ref: "#/components/parameters/AppID"
+      - $ref: "#/components/parameters/Kind"
+    get:
+      tags: [editor]
+      summary: List records
+      description: Every layout, template or page of the application without projects, oldest first (pages by position). The `items` shape is what grapesjs-pages' sync reads.
+      operationId: internalListRecords
+      responses:
+        "200":
+          description: The records.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/Record" }
+                required: [items]
+        "404": { $ref: "#/components/responses/NotFound" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /internal/v1/apps/{app}/editor/{kind}/{id}:
+    parameters:
+      - $ref: "#/components/parameters/AppID"
+      - $ref: "#/components/parameters/Kind"
+      - $ref: "#/components/parameters/ID"
+    get:
+      tags: [editor]
+      summary: Get a record
+      description: The record with its draft project in `data` and, for a page, its draft values.
+      operationId: internalGetRecord
+      responses:
+        "200":
+          description: The record.
+          headers: { ETag: { $ref: "#/components/headers/ETag" } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RecordWithData" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    put:
+      tags: [editor]
+      summary: Create or replace a record
+      operationId: internalPutRecord
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RecordWrite" }
+      responses:
+        "200":
+          description: Replaced; the new version.
+          headers: { ETag: { $ref: "#/components/headers/ETag" } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Record" }
+        "201":
+          description: Created.
+          headers: { ETag: { $ref: "#/components/headers/ETag" } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Record" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "412": { $ref: "#/components/responses/Precondition" }
+        "413": { $ref: "#/components/responses/TooLarge" }
+        "422": { $ref: "#/components/responses/Invalid" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    delete:
+      tags: [editor]
+      summary: Delete a record
+      description: Deletes it with its content. A deleted layout leaves its pages without one; a page's children lose their parent.
+      operationId: internalDeleteRecord
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      responses:
+        "204": { description: Deleted. }
+        "409":
+          description: A template that pages still use.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "412": { $ref: "#/components/responses/Precondition" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+components:
+  parameters:
+    AppID:
+      name: app
+      in: path
+      required: true
+      description: The application's id in the dashboard.
+      schema: { type: string, format: uuid }
+    Kind:
+      name: kind
+      in: path
+      required: true
+      description: The kind of record.
+      schema: { type: string, enum: [layouts, templates, pages] }
+    ID:
+      name: id
+      in: path
+      required: true
+      description: The record's id, a UUID the editor generates (stable across devices; `PUT` creates).
+      schema: { type: string, format: uuid }
+    IfMatch:
+      name: If-Match
+      in: header
+      required: false
+      description: The version the edits are based on, quoted like an ETag (`"7"`). Omitted = unconditional (the editor's "keep mine").
+      schema: { type: string, example: '"7"' }
+
+  headers:
+    ETag:
+      description: The record's version, quoted.
+      schema: { type: string, example: '"8"' }
+
+  responses:
+    NotFound:
+      description: No such record in this application.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Precondition:
+      description: "`If-Match` does not match the current version, or the record is gone. Reload, merge, or write without `If-Match`."
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Invalid:
+      description: The request body is invalid.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ValidationError" }
+    BadRequest:
+      description: Not JSON, or a malformed `If-Match`.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    TooLarge:
+      description: The body is larger than 4 MiB.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Unauthorized:
+      description: No or a wrong service token.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+      required: [error]
+
+    ValidationError:
+      type: object
+      properties:
+        error: { type: string, example: The given data was invalid. }
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items: { type: string }
+      required: [error, errors]
+
+    Project:
+      type: object
+      description: A GrapesJS project (`editor.getProjectData()`), at most 2 MiB, stored as it is.
+      additionalProperties: true
+
+    Field:
+      type: object
+      properties:
+        name: { type: string, pattern: "^[a-z][a-z0-9_]{0,63}$", example: price }
+        type: { type: string, enum: [text, richtext, image, link, number, boolean, date, select, list] }
+        label: { type: string, maxLength: 200 }
+        required: { type: boolean }
+        default: { description: Any JSON value. }
+        options:
+          type: array
+          items: { type: string }
+          description: The choices of a `select`.
+        format: { type: string, description: "A number or date format, e.g. `0.00`." }
+        fields:
+          type: array
+          items: { $ref: "#/components/schemas/Field" }
+          description: The fields of a `list` item (one level).
+      required: [name, type]
+
+    Record:
+      type: object
+      description: A layout, template or page. Pages carry the page fields, templates `fields`.
+      properties:
+        kind: { type: string, enum: [layout, template, page] }
+        id: { type: string, format: uuid }
+        name: { type: string, description: The name; a page's title. }
+        version: { type: integer, description: Changes on every write. }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        slug: { type: string, example: /products/coffee-grinder }
+        page_kind: { type: string, enum: [free, entry] }
+        status: { type: string, enum: [draft, published, archived] }
+        layout_id: { type: string, format: uuid }
+        template_id: { type: string, format: uuid }
+        parent_id: { type: string, format: uuid }
+        position: { type: integer }
+        fields:
+          type: array
+          items: { $ref: "#/components/schemas/Field" }
+      required: [kind, id, name, version, created_at, updated_at]
+
+    RecordWithData:
+      allOf:
+        - $ref: "#/components/schemas/Record"
+        - type: object
+          properties:
+            data: { $ref: "#/components/schemas/Project" }
+            values:
+              type: object
+              description: A page's draft values by key (`field.<name>`, `seo.<name>`, the client's own keys).
+              additionalProperties: true
+
+    RecordWrite:
+      type: object
+      description: |
+        What `grapesjs-pages` v1 sends (`name`, `data`; other properties such as `id` and
+        `updatedAt` are ignored) plus the optional v2 properties. Omitted page references
+        keep their value; a new page without `slug` gets one from its name.
+      properties:
+        name: { type: string, maxLength: 200 }
+        data: { $ref: "#/components/schemas/Project" }
+        slug: { type: string, description: "`/` for the home page, else `/a/b-c` of lower-case letters, digits and dashes." }
+        layout_id: { type: [string, "null"], format: uuid }
+        template_id: { type: [string, "null"], format: uuid, description: Makes the page an entry of the template. }
+        parent_id: { type: [string, "null"], format: uuid }
+        position: { type: integer }
+        values:
+          type: object
+          maxProperties: 200
+          description: Keys to set (`field.price`, `seo.description`…); `null` deletes a key; keys not sent stay. 64 KiB a value.
+          additionalProperties: true
+        fields:
+          type: array
+          maxItems: 100
+          items: { $ref: "#/components/schemas/Field" }
+          description: A template's fields.
+      required: [name]
+
+    Site:
+      type: object
+      properties:
+        name: { type: string }
+        settings: { type: object, additionalProperties: true, description: "Languages, domain, fonts…" }
+        version: { type: integer }
+        updated_at: { type: string, format: date-time }
+        data: { $ref: "#/components/schemas/Project" }
+      required: [name, settings, version, updated_at]
+
+    SiteWrite:
+      type: object
+      properties:
+        name: { type: string, maxLength: 200 }
+        settings: { type: object, additionalProperties: true }
+        data: { $ref: "#/components/schemas/Project" }
+
+  securitySchemes:
+    serviceToken:
+      type: http
+      scheme: bearer
+      description: The dashboard's service token (`LUNA_DASHBOARD_TOKEN` of luna-pages).

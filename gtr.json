@@ -1,0 +1,37 @@
+{
+    "name": "luna-pages",
+    "version": "0.1.0",
+    "private": true,
+    "description": "Luna pages: a small CMS per application (sites, layouts, templates with fields, pages)",
+    "license": "MIT",
+    "repository": "github:shibisty/luna-pages",
+    "engines": {
+        "go": ">=1.22"
+    },
+    "dependencies": {
+        "fullstack": "github:shibisty/fullstack.go#^0.1",
+        "fullstack-orm": "github:shibisty/fullstack.go-orm#^0.1",
+        "fullstack-validation": "github:shibisty/fullstack.go-validation#^0.1",
+        "luna-keys": "workspace:^0.1",
+        "migration": "github:shibisty/migration.go#^0.1",
+        "migration-orm": "github:shibisty/migration.go-orm-driver#^0.1",
+        "orm": "github:shibisty/orm.go#^0.2",
+        "orm-postgres": "github:shibisty/orm.go-postgres-driver#^0.1"
+    },
+    "devDependencies": {
+        "fullstack-testing": "github:shibisty/fullstack.go-testing#^0.1"
+    },
+    "build": {
+        "entry": ".",
+        "output": "luna-pages",
+        "ldflags": "-s -w"
+    },
+    "scripts": {
+        "build": "gtr build",
+        "dev": "gtr dev",
+        "migrate": "go run . migrate",
+        "routes": "go run . routes:list",
+        "test": "go test ./...",
+        "test:integration": "go test -tags integration ./..."
+    }
+}
