@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 type fixture struct {
@@ -12,7 +13,12 @@ type fixture struct {
 	Fields   []fixtureField             `json:"fields"`
 	Template string                     `json:"template"`
 	Values   map[string]json.RawMessage `json:"values"`
-	HTML     string                     `json:"html"`
+	Entry    *struct {
+		Name        string     `json:"name"`
+		Slug        string     `json:"slug"`
+		PublishedAt *time.Time `json:"published_at"`
+	} `json:"entry"`
+	HTML string `json:"html"`
 }
 
 type fixtureField struct {
@@ -50,7 +56,11 @@ func TestFillFixtures(t *testing.T) {
 			for _, f := range c.Fields {
 				fields = append(fields, f.field())
 			}
-			got, err := Fill(c.Template, fields, c.Values, Policy{})
+			var entry Entry
+			if c.Entry != nil {
+				entry = Entry{Name: c.Entry.Name, Slug: c.Entry.Slug, PublishedAt: c.Entry.PublishedAt}
+			}
+			got, err := Fill(c.Template, fields, c.Values, entry, Policy{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -64,6 +74,7 @@ func TestFillFixtures(t *testing.T) {
 func TestSanitizeHTML(t *testing.T) {
 	cases := []struct{ name, in, want string }{
 		{"script dropped", `<p>a</p><script>alert(1)</script><p>b</p>`, `<p>a</p><p>b</p>`},
+		{"placeholders kept for the filler", `<a href="{{entry.url}}" title="{{title}}">{{title}}</a><img src="{{photo}}">`, `<a href="{{entry.url}}" title="{{title}}">{{title}}</a><img src="{{photo}}"/>`},
 		{"style element dropped", `<style>body{}</style><p>x</p>`, `<p>x</p>`},
 		{"event handlers removed", `<div onclick="x()" onMouseOver="y()" class="c">t</div>`, `<div class="c">t</div>`},
 		{"javascript href removed", `<a href="javascript:alert(1)">x</a>`, `<a>x</a>`},

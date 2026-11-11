@@ -92,8 +92,14 @@ backend), and under `/internal/v1/apps/{app}/editor` for the dashboard's editor.
   text escaped, rich text sanitized, `src`/`alt` for images, `href` and text for links, numbers by
   `format` (`0.00`, `#,##0`), dates by `YYYY`/`MM`/`DD`, a false boolean removes the element, a list
   repeats its first child (or its `data-field-item` child) per item. A value that is missing keeps
-  the template's placeholder. The cases in `app/render/testdata/fill.json` are shared with
-  grapesjs-storage's renderer.
+  the template's placeholder.
+- **Placeholders**: `{{field}}` in text and in `href`, `src`, `alt`, `title`, `aria-label` is the
+  field's value as text (by its type and format; nothing without a value), `{{entry.name}}`,
+  `{{entry.slug}}`, `{{entry.url}}`, `{{entry.published_at}}` the entry's own; inside a list's
+  item they name the item's fields; `href`/`src` are checked as URLs afterwards (unsafe or empty:
+  the attribute goes); `script` and `style` keep their text. The template's fields list them
+  (grapesjs-storage declares one per placeholder), so the forms show them.
+- The cases in `app/render/testdata/fill.json` are shared with grapesjs-storage's renderer.
 
 ## The content API
 

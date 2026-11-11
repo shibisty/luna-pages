@@ -157,7 +157,7 @@ func (s *Store) PageView(ctx context.Context, app, slugOrID string, draft bool) 
 }
 
 func pageBy(ctx context.Context, db orm.SQLExecutor, app, column, value string) (Record, sql.NullTime, error) {
-	rows, err := db.QueryContext(ctx, `SELECT `+columns(Page)+`, published_at FROM pages WHERE app_id = $1 AND `+column+` = $2`, app, value)
+	rows, err := db.QueryContext(ctx, `SELECT `+columns(Page)+` FROM pages WHERE app_id = $1 AND `+column+` = $2`, app, value)
 	if err != nil {
 		return Record{}, sql.NullTime{}, err
 	}
@@ -168,18 +168,13 @@ func pageBy(ctx context.Context, db orm.SQLExecutor, app, column, value string) 
 		}
 		return Record{}, sql.NullTime{}, ErrNotFound
 	}
+	r, err := scanRecord(Page, rows)
 	var at sql.NullTime
-	r, err := scanRecord(Page, extra{rows, &at})
+	if r.PublishedAt != nil {
+		at = sql.NullTime{Time: *r.PublishedAt, Valid: true}
+	}
 	return r, at, err
 }
-
-// extra scans the columns of a record and then the given ones.
-type extra struct {
-	row  scanner
-	more *sql.NullTime
-}
-
-func (e extra) Scan(dest ...any) error { return e.row.Scan(append(dest, e.more)...) }
 
 // ListQuery filters and pages the published pages.
 type ListQuery struct {

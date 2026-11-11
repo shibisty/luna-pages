@@ -787,6 +787,7 @@ components:
         template_id: { type: string, format: uuid }
         parent_id: { type: string, format: uuid }
         position: { type: integer }
+        published_at: { type: string, format: date-time, description: When the page was last published (pages only; absent while a draft). }
         fields:
           type: array
           items: { $ref: "#/components/schemas/Field" }
@@ -1023,6 +1024,12 @@ components:
         updated_at:
           type: string
           format: date-time
+        published_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          description: When it was last published; `{{entry.published_at}}` in its template shows the date.
       required:
       - id
       - template_id

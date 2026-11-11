@@ -28,6 +28,7 @@ const productHTML = `<article class="product">` +
 	`<p>Price: <span data-field="price">0.00</span></p>` +
 	`<span data-field="sale" class="badge">Sale</span>` +
 	`<ul data-field="specs"><li><b data-field="name">Name</b>: <i data-field="value">Value</i></li></ul>` +
+	`<a href="{{entry.url}}" title="{{ title }}">{{entry.name}}: {{price}}</a>` +
 	`<script>alert(1)</script></article>`
 
 // htmlHas checks the rendered HTML (the body escapes < as \u003c).
@@ -122,6 +123,7 @@ func TestPublishLayoutTemplatePage(t *testing.T) {
 		`<img data-field="photo" src="https://cdn.example.com/grinder.jpg" alt="A grinder"/>` +
 		`<p>Price: <span data-field="price">49.50</span></p>` +
 		`<ul data-field="specs"><li><b data-field="name">Burrs</b>: <i data-field="value">Steel</i></li><li><b data-field="name">Weight</b>: <i data-field="value">1 kg</i></li></ul>` +
+		`<a href="/products/coffee-grinder" title="Coffee grinder">Coffee grinder: 49.50</a>` +
 		`</article></main><footer>©</footer>`
 	if html != want {
 		t.Errorf("rendered:\n got: %v\nwant: %s", html, want)

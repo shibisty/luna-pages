@@ -4,7 +4,9 @@
     {
       "name": "text is escaped",
       "template": "<h1 data-field=\"title\" data-field-type=\"text\">Product name</h1>",
-      "values": {"title": "Grinder <b>2</b> & co"},
+      "values": {
+        "title": "Grinder <b>2</b> & co"
+      },
       "html": "<h1 data-field=\"title\" data-field-type=\"text\">Grinder &lt;b&gt;2&lt;/b&gt; &amp; co</h1>"
     },
     {
@@ -15,85 +17,328 @@
     },
     {
       "name": "the field list decides the type",
-      "fields": [{"name": "price", "type": "number", "format": "0.00"}],
+      "fields": [
+        {
+          "name": "price",
+          "type": "number",
+          "format": "0.00"
+        }
+      ],
       "template": "<span data-field=\"price\">0</span>",
-      "values": {"price": 12.5},
+      "values": {
+        "price": 12.5
+      },
       "html": "<span data-field=\"price\">12.50</span>"
     },
     {
       "name": "number by data-field-format with thousands",
       "template": "<span data-field=\"price\" data-field-type=\"number\" data-field-format=\"#,##0.00\">0</span>",
-      "values": {"price": "1234567.5"},
+      "values": {
+        "price": "1234567.5"
+      },
       "html": "<span data-field=\"price\" data-field-type=\"number\" data-field-format=\"#,##0.00\">1,234,567.50</span>"
     },
     {
       "name": "richtext is sanitized",
       "template": "<div data-field=\"description\" data-field-type=\"richtext\"><p>About</p></div>",
-      "values": {"description": "<p onclick=\"x()\">Fine <a href=\"javascript:alert(1)\">link</a></p><script>alert(1)</script>"},
+      "values": {
+        "description": "<p onclick=\"x()\">Fine <a href=\"javascript:alert(1)\">link</a></p><script>alert(1)</script>"
+      },
       "html": "<div data-field=\"description\" data-field-type=\"richtext\"><p>Fine <a>link</a></p></div>"
     },
     {
       "name": "image sets src and alt",
       "template": "<img data-field=\"photo\" data-field-type=\"image\" src=\"placeholder.png\" srcset=\"placeholder@2x.png 2x\"/>",
-      "values": {"photo": {"url": "https://cdn.example.com/a.jpg", "alt": "A grinder"}},
+      "values": {
+        "photo": {
+          "url": "https://cdn.example.com/a.jpg",
+          "alt": "A grinder"
+        }
+      },
       "html": "<img data-field=\"photo\" data-field-type=\"image\" src=\"https://cdn.example.com/a.jpg\" alt=\"A grinder\"/>"
     },
     {
       "name": "an unsafe image URL is ignored",
       "template": "<img data-field=\"photo\" data-field-type=\"image\" src=\"placeholder.png\"/>",
-      "values": {"photo": "javascript:alert(1)"},
+      "values": {
+        "photo": "javascript:alert(1)"
+      },
       "html": "<img data-field=\"photo\" data-field-type=\"image\" src=\"placeholder.png\" alt=\"\"/>"
     },
     {
       "name": "link sets href and text",
       "template": "<a data-field=\"more\" data-field-type=\"link\" href=\"#\">Read more</a>",
-      "values": {"more": {"url": "/products", "label": "All products"}},
+      "values": {
+        "more": {
+          "url": "/products",
+          "label": "All products"
+        }
+      },
       "html": "<a data-field=\"more\" data-field-type=\"link\" href=\"/products\">All products</a>"
     },
     {
       "name": "a false boolean removes the element",
       "template": "<p>Price</p><span data-field=\"sale\" data-field-type=\"boolean\">On sale</span><p>End</p>",
-      "values": {"sale": false},
+      "values": {
+        "sale": false
+      },
       "html": "<p>Price</p><p>End</p>"
     },
     {
       "name": "a true boolean keeps it",
       "template": "<span data-field=\"sale\" data-field-type=\"boolean\">On sale</span>",
-      "values": {"sale": true},
+      "values": {
+        "sale": true
+      },
       "html": "<span data-field=\"sale\" data-field-type=\"boolean\">On sale</span>"
     },
     {
       "name": "date by format",
       "template": "<time data-field=\"released\" data-field-type=\"date\" data-field-format=\"DD.MM.YYYY\">01.01.2000</time>",
-      "values": {"released": "2026-11-11"},
+      "values": {
+        "released": "2026-11-11"
+      },
       "html": "<time data-field=\"released\" data-field-type=\"date\" data-field-format=\"DD.MM.YYYY\">11.11.2026</time>"
     },
     {
       "name": "list repeats its item",
-      "fields": [{"name": "specs", "type": "list", "fields": [{"name": "name", "type": "text"}, {"name": "value", "type": "text"}]}],
+      "fields": [
+        {
+          "name": "specs",
+          "type": "list",
+          "fields": [
+            {
+              "name": "name",
+              "type": "text"
+            },
+            {
+              "name": "value",
+              "type": "text"
+            }
+          ]
+        }
+      ],
       "template": "<ul data-field=\"specs\"><li><b data-field=\"name\">Name</b>: <span data-field=\"value\">Value</span></li></ul>",
-      "values": {"specs": [{"name": "Weight", "value": "1 kg"}, {"name": "Power", "value": "150 W"}]},
+      "values": {
+        "specs": [
+          {
+            "name": "Weight",
+            "value": "1 kg"
+          },
+          {
+            "name": "Power",
+            "value": "150 W"
+          }
+        ]
+      },
       "html": "<ul data-field=\"specs\"><li><b data-field=\"name\">Weight</b>: <span data-field=\"value\">1 kg</span></li><li><b data-field=\"name\">Power</b>: <span data-field=\"value\">150 W</span></li></ul>"
     },
     {
       "name": "list item marked with data-field-item",
-      "fields": [{"name": "tags", "type": "list", "fields": [{"name": "tag", "type": "text"}]}],
+      "fields": [
+        {
+          "name": "tags",
+          "type": "list",
+          "fields": [
+            {
+              "name": "tag",
+              "type": "text"
+            }
+          ]
+        }
+      ],
       "template": "<div data-field=\"tags\"><h3>Tags</h3><span data-field-item=\"\"><i data-field=\"tag\">tag</i></span></div>",
-      "values": {"tags": [{"tag": "steel"}, {"tag": "manual"}]},
+      "values": {
+        "tags": [
+          {
+            "tag": "steel"
+          },
+          {
+            "tag": "manual"
+          }
+        ]
+      },
       "html": "<div data-field=\"tags\"><span data-field-item=\"\"><i data-field=\"tag\">steel</i></span><span data-field-item=\"\"><i data-field=\"tag\">manual</i></span></div>"
     },
     {
       "name": "an empty list empties the element",
-      "fields": [{"name": "specs", "type": "list", "fields": [{"name": "name", "type": "text"}]}],
+      "fields": [
+        {
+          "name": "specs",
+          "type": "list",
+          "fields": [
+            {
+              "name": "name",
+              "type": "text"
+            }
+          ]
+        }
+      ],
       "template": "<ul data-field=\"specs\"><li data-field=\"name\">Name</li></ul>",
-      "values": {"specs": []},
+      "values": {
+        "specs": []
+      },
       "html": "<ul data-field=\"specs\"></ul>"
     },
     {
       "name": "fields nested in plain elements",
       "template": "<section class=\"card\"><div><h2 data-field=\"title\" data-field-type=\"text\">T</h2></div></section>",
-      "values": {"title": "Coffee grinder"},
+      "values": {
+        "title": "Coffee grinder"
+      },
       "html": "<section class=\"card\"><div><h2 data-field=\"title\" data-field-type=\"text\">Coffee grinder</h2></div></section>"
+    },
+    {
+      "name": "placeholders in text, by the field's type",
+      "fields": [
+        {
+          "name": "price",
+          "type": "number",
+          "format": "0.00"
+        }
+      ],
+      "template": "<p>{{ title }} for {{price}} UAH</p>",
+      "values": {
+        "title": "Grinder <b>2</b> & co",
+        "price": 49.5
+      },
+      "html": "<p>Grinder &lt;b&gt;2&lt;/b&gt; &amp; co for 49.50 UAH</p>"
+    },
+    {
+      "name": "a placeholder without a value shows nothing",
+      "template": "<p>[{{title}}]</p>",
+      "values": {},
+      "html": "<p>[]</p>"
+    },
+    {
+      "name": "the entry's own placeholders",
+      "entry": {
+        "name": "Coffee grinder",
+        "slug": "/products/grinder",
+        "published_at": "2026-11-11T09:30:00Z"
+      },
+      "template": "<a href=\"{{entry.url}}\" title=\"{{entry.name}}\">{{entry.slug}}</a><time>{{entry.published_at}}</time><i>{{entry.nope}}</i>",
+      "values": {},
+      "html": "<a href=\"/products/grinder\" title=\"Coffee grinder\">/products/grinder</a><time>2026-11-11</time><i></i>"
+    },
+    {
+      "name": "images and links in attributes and text",
+      "fields": [
+        {
+          "name": "photo",
+          "type": "image"
+        },
+        {
+          "name": "buy",
+          "type": "link"
+        }
+      ],
+      "template": "<img src=\"{{photo}}\" alt=\"{{photo}}\"><a href=\"{{buy}}\">{{buy}}</a>",
+      "values": {
+        "photo": {
+          "url": "https://cdn.example.com/g.jpg",
+          "alt": "A grinder"
+        },
+        "buy": {
+          "url": "https://shop.example.com/g",
+          "label": "Buy now"
+        }
+      },
+      "html": "<img src=\"https://cdn.example.com/g.jpg\" alt=\"A grinder\"/><a href=\"https://shop.example.com/g\">Buy now</a>"
+    },
+    {
+      "name": "an unsafe or empty address drops the attribute",
+      "template": "<a href=\"{{site}}\" title=\"t\">x</a><img src=\"{{photo}}\">",
+      "values": {
+        "site": "javascript:alert(1)"
+      },
+      "html": "<a title=\"t\">x</a><img/>"
+    },
+    {
+      "name": "placeholders in a list's item name the item's fields",
+      "fields": [
+        {
+          "name": "specs",
+          "type": "list",
+          "fields": [
+            {
+              "name": "name",
+              "type": "text"
+            },
+            {
+              "name": "weight",
+              "type": "number",
+              "format": "0.0"
+            }
+          ]
+        }
+      ],
+      "template": "<ul data-field=\"specs\" data-field-type=\"list\"><li title=\"{{name}}\">{{name}}: {{weight}} kg</li></ul>",
+      "values": {
+        "specs": [
+          {
+            "name": "Body",
+            "weight": 1.25
+          },
+          {
+            "name": "Burrs"
+          }
+        ]
+      },
+      "html": "<ul data-field=\"specs\" data-field-type=\"list\"><li title=\"Body\">Body: 1.3 kg</li><li title=\"Burrs\">Burrs:  kg</li></ul>"
+    },
+    {
+      "name": "rich text is its text; yes/no and lists show nothing",
+      "fields": [
+        {
+          "name": "about",
+          "type": "richtext"
+        },
+        {
+          "name": "sale",
+          "type": "boolean"
+        },
+        {
+          "name": "specs",
+          "type": "list",
+          "fields": [
+            {
+              "name": "name",
+              "type": "text"
+            }
+          ]
+        }
+      ],
+      "template": "<p>{{about}}|{{sale}}|{{specs}}</p>",
+      "values": {
+        "about": "<b>Steel</b> burrs<script>x()</script>",
+        "sale": true,
+        "specs": [
+          {
+            "name": "a"
+          }
+        ]
+      },
+      "html": "<p>Steel burrs||</p>"
+    },
+    {
+      "name": "a field element without a value fills the placeholders in its placeholder",
+      "entry": {
+        "name": "Coffee grinder",
+        "slug": "/products/grinder",
+        "published_at": "2026-11-11T09:30:00Z"
+      },
+      "template": "<h1 data-field=\"title\">{{entry.name}}</h1>",
+      "values": {},
+      "html": "<h1 data-field=\"title\">Coffee grinder</h1>"
+    },
+    {
+      "name": "other braces, script and style stay as they are",
+      "template": "<p>{{Title}} {{ a b }} {{}}</p><style>.a{{x}}</style><script>var t = \"{{title}}\";</script>",
+      "values": {
+        "title": "T"
+      },
+      "html": "<p>{{Title}} {{ a b }} {{}}</p><style>.a{{x}}</style><script>var t = \"{{title}}\";</script>"
     }
   ]
 }

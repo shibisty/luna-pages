@@ -3,6 +3,7 @@ package render
 import (
 	"encoding/json"
 	"math"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -20,6 +21,13 @@ type Field struct {
 	Fields []Field // the item of a list
 }
 
+// Entry is what the {{entry.…}} placeholders show.
+type Entry struct {
+	Name        string
+	Slug        string
+	PublishedAt *time.Time
+}
+
 // Fill writes an entry's values into a template's field elements, the
 // elements marked data-field="<name>":
 //
@@ -35,12 +43,18 @@ type Field struct {
 //
 // A field without a value keeps the template's placeholder. values are by
 // field name (the store keeps them under field.<name>).
-func Fill(template string, fields []Field, values map[string]json.RawMessage, p Policy) (string, error) {
+//
+// Placeholders in text and in href, src, alt, title and aria-label are
+// replaced too (see Placeholder): {{title}} is a field's value as text,
+// {{entry.slug}} the entry's own. Inside a list's item they name the
+// item's fields.
+func Fill(template string, fields []Field, values map[string]json.RawMessage, entry Entry, p Policy) (string, error) {
 	nodes, err := ParseFragment(template)
 	if err != nil {
 		return "", err
 	}
-	nodes = fillNodes(nodes, index(fields), values, p)
+	f := filler{p: p, entry: entry}
+	nodes = f.nodes(nodes, index(fields), values)
 	return Render(nodes)
 }
 
@@ -52,27 +66,42 @@ func index(fields []Field) map[string]Field {
 	return m
 }
 
-// fillNodes fills a list of sibling nodes; a node may disappear (a false
+type filler struct {
+	p     Policy
+	entry Entry
+}
+
+// nodes fills a list of sibling nodes; a node may disappear (a false
 // boolean).
-func fillNodes(nodes []*html.Node, fields map[string]Field, values map[string]json.RawMessage, p Policy) []*html.Node {
+func (fl filler) nodes(nodes []*html.Node, fields map[string]Field, values map[string]json.RawMessage) []*html.Node {
 	out := nodes[:0]
 	for _, n := range nodes {
-		if fillNode(n, fields, values, p) {
+		if fl.node(n, fields, values) {
 			out = append(out, n)
 		}
 	}
 	return out
 }
 
-// fillNode fills n and what is inside it; false: remove n.
-func fillNode(n *html.Node, fields map[string]Field, values map[string]json.RawMessage, p Policy) bool {
-	if n.Type != html.ElementNode {
+// node fills n and what is inside it; false: remove n.
+func (fl filler) node(n *html.Node, fields map[string]Field, values map[string]json.RawMessage) bool {
+	switch n.Type {
+	case html.TextNode:
+		if strings.Contains(n.Data, "{{") {
+			n.Data = fl.replace(n.Data, "", fields, values)
+		}
 		return true
+	case html.ElementNode:
+	default:
+		return true
+	}
+	fl.attrs(n, fields, values)
+	if n.Data == "script" || n.Data == "style" {
+		return true // their text stays as it is: what a placeholder put there would not be escaped
 	}
 	name := attr(n, "data-field")
 	if name == "" {
-		kids := fillNodes(children(n), fields, values, p)
-		setChildren(n, kids)
+		fl.children(n, fields, values)
 		return true
 	}
 	f, ok := fields[name]
@@ -84,7 +113,8 @@ func fillNode(n *html.Node, fields map[string]Field, values map[string]json.RawM
 	}
 	v, has := values[name]
 	if !has || string(v) == "null" {
-		return true // the placeholder stays
+		fl.children(n, fields, values) // the placeholder stays, its own placeholders filled
+		return true
 	}
 	switch f.Type {
 	case "richtext":
@@ -93,7 +123,7 @@ func fillNode(n *html.Node, fields map[string]Field, values map[string]json.RawM
 		if err != nil {
 			return true
 		}
-		setChildren(n, p.clean(clean))
+		setChildren(n, fl.p.clean(clean))
 	case "number":
 		setText(n, formatNumber(v, f.Format))
 	case "date":
@@ -103,6 +133,7 @@ func fillNode(n *html.Node, fields map[string]Field, values map[string]json.RawM
 		if json.Unmarshal(v, &b) == nil && !b {
 			return false
 		}
+		fl.children(n, fields, values)
 	case "image":
 		url, alt := image(v)
 		if u, ok := cleanURL(url, true); ok && u != "" {
@@ -119,17 +150,23 @@ func fillNode(n *html.Node, fields map[string]Field, values map[string]json.RawM
 		}
 		if label != "" {
 			setText(n, label)
+		} else {
+			fl.children(n, fields, values)
 		}
 	case "list":
-		fillList(n, f, v, p)
+		fl.list(n, f, v)
 	default: // text, select and unknown types: text
 		setText(n, asString(v))
 	}
 	return true
 }
 
-// fillList repeats the list element's item once per value.
-func fillList(n *html.Node, f Field, v json.RawMessage, p Policy) {
+func (fl filler) children(n *html.Node, fields map[string]Field, values map[string]json.RawMessage) {
+	setChildren(n, fl.nodes(children(n), fields, values))
+}
+
+// list repeats the list element's item once per value.
+func (fl filler) list(n *html.Node, f Field, v json.RawMessage) {
 	var items []map[string]json.RawMessage
 	if json.Unmarshal(v, &items) != nil {
 		return
@@ -156,11 +193,124 @@ func fillList(n *html.Node, f Field, v json.RawMessage, p Policy) {
 	var kids []*html.Node
 	for _, values := range items {
 		c := clone(item)
-		if fillNode(c, sub, values, p) {
+		if fl.node(c, sub, values) {
 			kids = append(kids, c)
 		}
 	}
 	setChildren(n, kids)
+}
+
+/* ---------------- placeholders ---------------- */
+
+// Placeholder matches {{name}} (a field: a-z, digits, _) and
+// {{entry.name}}; spaces inside the braces are allowed. Anything else in
+// braces is left as it is.
+var Placeholder = regexp.MustCompile(`\{\{\s*((?:entry\.)?[a-z][a-z0-9_]{0,63})\s*\}\}`)
+
+// placeholderAttrs are the attributes whose placeholders are filled; href
+// and src are checked as URLs afterwards.
+var placeholderAttrs = map[string]bool{"href": true, "src": true, "alt": true, "title": true, "aria-label": true}
+
+func (fl filler) attrs(n *html.Node, fields map[string]Field, values map[string]json.RawMessage) {
+	out := n.Attr[:0]
+	for _, a := range n.Attr {
+		key := strings.ToLower(a.Key)
+		if a.Namespace == "" && placeholderAttrs[key] && strings.Contains(a.Val, "{{") {
+			a.Val = fl.replace(a.Val, key, fields, values)
+			if key == "href" || key == "src" {
+				u, ok := cleanURL(a.Val, key == "src")
+				if !ok || u == "" {
+					continue // an unsafe or empty address: no attribute
+				}
+				a.Val = u
+			}
+		}
+		out = append(out, a)
+	}
+	n.Attr = out
+}
+
+func (fl filler) replace(s, attr string, fields map[string]Field, values map[string]json.RawMessage) string {
+	return Placeholder.ReplaceAllStringFunc(s, func(m string) string {
+		name := Placeholder.FindStringSubmatch(m)[1]
+		if key, ok := strings.CutPrefix(name, "entry."); ok {
+			return fl.entryValue(key)
+		}
+		f, ok := fields[name]
+		if !ok {
+			f = Field{Name: name, Type: "text"}
+		}
+		v, has := values[name]
+		if !has || string(v) == "null" {
+			return ""
+		}
+		return valueText(f, v, attr)
+	})
+}
+
+func (fl filler) entryValue(key string) string {
+	switch key {
+	case "name":
+		return fl.entry.Name
+	case "slug", "url":
+		return fl.entry.Slug
+	case "published_at":
+		if fl.entry.PublishedAt != nil {
+			return fl.entry.PublishedAt.UTC().Format("2006-01-02")
+		}
+	}
+	return ""
+}
+
+// valueText is a value as a placeholder shows it: text by the field's
+// type; an image is its URL in src and its alt text elsewhere, a link its
+// URL in href and its label (or URL) elsewhere; yes/no and lists show
+// nothing (they are elements' fields).
+func valueText(f Field, v json.RawMessage, attr string) string {
+	switch f.Type {
+	case "number":
+		return formatNumber(v, f.Format)
+	case "date":
+		return formatDate(asString(v), f.Format)
+	case "richtext":
+		nodes, err := ParseFragment(asString(v))
+		if err != nil {
+			return ""
+		}
+		var b strings.Builder
+		for _, n := range nodes {
+			textOf(n, &b)
+		}
+		return b.String()
+	case "image":
+		url, alt := image(v)
+		if attr == "src" {
+			return url
+		}
+		return alt
+	case "link":
+		url, label := link(v)
+		if attr == "href" || label == "" {
+			return url
+		}
+		return label
+	case "boolean", "list":
+		return ""
+	}
+	return asString(v)
+}
+
+func textOf(n *html.Node, b *strings.Builder) {
+	if n.Type == html.TextNode {
+		b.WriteString(n.Data)
+		return
+	}
+	if n.Type == html.ElementNode && (n.Data == "script" || n.Data == "style") {
+		return
+	}
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		textOf(c, b)
+	}
 }
 
 func clone(n *html.Node) *html.Node {

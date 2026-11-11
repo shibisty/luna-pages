@@ -31,7 +31,7 @@ func columns(k Kind) string {
 	case Template:
 		return common + ", name, fields"
 	}
-	return common + ", title, slug, kind, status, layout_id, template_id, parent_id, position"
+	return common + ", title, slug, kind, status, layout_id, template_id, parent_id, position, published_at"
 }
 
 type scanner interface{ Scan(...any) error }
@@ -51,8 +51,13 @@ func scanRecord(k Kind, row scanner) (Record, error) {
 		}
 	default:
 		var layout, template, parent sql.NullString
-		err = row.Scan(append(common, &r.Name, &r.Slug, &r.PageKind, &r.Status, &layout, &template, &parent, &r.Position)...)
+		var published sql.NullTime
+		err = row.Scan(append(common, &r.Name, &r.Slug, &r.PageKind, &r.Status, &layout, &template, &parent, &r.Position, &published)...)
 		r.LayoutID, r.TemplateID, r.ParentID = nullable(layout), nullable(template), nullable(parent)
+		if published.Valid {
+			t := published.Time.UTC()
+			r.PublishedAt = &t
+		}
 	}
 	r.CreatedAt, r.UpdatedAt = r.CreatedAt.UTC(), r.UpdatedAt.UTC()
 	return r, err

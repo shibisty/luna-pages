@@ -94,6 +94,8 @@ type Record struct {
 	TemplateID *string `json:"template_id,omitempty"`
 	ParentID   *string `json:"parent_id,omitempty"`
 	Position   int     `json:"position,omitempty"`
+	// When the page was last published (null while it is a draft).
+	PublishedAt *time.Time `json:"published_at,omitempty"`
 
 	// Templates.
 	Fields []Field `json:"fields,omitempty"`

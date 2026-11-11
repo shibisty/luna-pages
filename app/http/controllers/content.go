@@ -34,6 +34,8 @@ type ContentEntry struct {
 	Values     map[string]json.RawMessage `json:"values,omitempty"`
 	Version    int64                      `json:"version"`
 	UpdatedAt  time.Time                  `json:"updated_at"`
+	// When it was last published; {{entry.published_at}} in its template.
+	PublishedAt *time.Time `json:"published_at"`
 }
 
 func contentTemplate(r store.Record, withData bool) ContentTemplate {
@@ -48,7 +50,7 @@ func contentTemplate(r store.Record, withData bool) ContentTemplate {
 }
 
 func contentEntry(r store.Record, withValues bool) ContentEntry {
-	e := ContentEntry{ID: r.ID, Name: r.Name, Slug: r.Slug, Status: r.Status, Version: r.Version, UpdatedAt: r.UpdatedAt}
+	e := ContentEntry{ID: r.ID, Name: r.Name, Slug: r.Slug, Status: r.Status, Version: r.Version, UpdatedAt: r.UpdatedAt, PublishedAt: r.PublishedAt}
 	if r.TemplateID != nil {
 		e.TemplateID = *r.TemplateID
 	}

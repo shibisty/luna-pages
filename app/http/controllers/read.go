@@ -153,7 +153,8 @@ func renderView(v store.View) (Rendered, error) {
 	body := v.Body
 	if v.Entry {
 		var err error
-		if body, err = render.Fill(v.Body, store.RenderFields(v.Fields), store.FieldValues(v.Values), store.SitePolicy(v.Settings)); err != nil {
+		if body, err = render.Fill(v.Body, store.RenderFields(v.Fields), store.FieldValues(v.Values),
+			render.Entry{Name: v.Page.Name, Slug: v.Page.Slug, PublishedAt: v.PublishedAt}, store.SitePolicy(v.Settings)); err != nil {
 			return Rendered{}, err
 		}
 	}
