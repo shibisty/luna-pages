@@ -127,7 +127,7 @@ func TestLayoutsTemplatesPages(t *testing.T) {
 	// Deleting: a template with entries is refused; a layout leaves its pages.
 	c.Delete("/v1/editor/templates/" + templateID).AssertStatus(409)
 	c.Delete("/v1/editor/layouts/" + layoutID).AssertNoContent()
-	c.GetJSON("/v1/editor/pages/"+homeID).AssertOK().AssertJSONMissing("layout_id")
+	c.GetJSON("/v1/editor/pages/" + homeID).AssertOK().AssertJSONMissing("layout_id")
 	c.WithHeader("If-Match", `"1"`).Delete("/v1/editor/pages/" + productID).AssertStatus(412) // it is at version 2
 	c.Delete("/v1/editor/pages/" + productID).AssertNoContent()
 	c.Delete("/v1/editor/pages/" + productID).AssertNotFound()

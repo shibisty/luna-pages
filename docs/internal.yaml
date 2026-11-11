@@ -4,8 +4,8 @@ info:
   version: 0.1.0
   summary: The dashboard's editor, for luna-dashboard only.
   description: |
-    The same editor contract as `/v1/editor` (`/openapi.yaml`), for the dashboard's GrapesJS
-    editor: the dashboard proxies its developer's requests here after checking that the
+    The same editor contract, publishing and read API as `/v1` (`/openapi.yaml`), for the
+    dashboard's GrapesJS editor and previews (`draft=1` is always allowed here): the dashboard proxies its developer's requests here after checking that the
     application is theirs. Every request carries the dashboard's service token
     (`LUNA_DASHBOARD_TOKEN` of luna-pages) in `Authorization: Bearer`; the application comes from
     the path. nginx does not route `/internal/`.
@@ -20,6 +20,10 @@ security:
 tags:
   - name: editor
     description: Sites, layouts, templates and pages (drafts).
+  - name: publish
+    description: Making drafts live, revisions, restoring.
+  - name: read
+    description: Published content and draft previews.
 
 paths:
   /internal/v1/apps/{app}/editor/site:
@@ -154,6 +158,235 @@ paths:
         "412": { $ref: "#/components/responses/Precondition" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
+  /internal/v1/apps/{app}/editor/{kind}/{id}/publish:
+    parameters:
+      - { $ref: "#/components/parameters/AppID" }
+      - { $ref: "#/components/parameters/Kind" }
+      - { $ref: "#/components/parameters/ID" }
+    post:
+      tags: [publish]
+      summary: Publish a record
+      operationId: internalPublishRecord
+      description: "The published HTML and CSS. The HTML is sanitized here (no scripts, no event handlers, no `javascript:` URLs, iframes from the allowed hosts only; the site settings `custom_code` and `iframe_hosts` widen that), the CSS too. A layout needs a `<luna-slot>`. An entry sends no body: its draft values are checked against its template's fields and published; its template must be published. `data` (the project) is saved as the draft first. The version moves on."
+      parameters:
+        - { $ref: "#/components/parameters/IfMatch" }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PublishWrite" }
+      responses:
+        "200":
+          description: "Live; the new revision and any warnings (template fields without an element)."
+          headers: { ETag: { $ref: "#/components/headers/ETag" } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Published" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "412": { $ref: "#/components/responses/Precondition" }
+        "413": { $ref: "#/components/responses/TooLarge" }
+        "422": { $ref: "#/components/responses/Invalid" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /internal/v1/apps/{app}/editor/site/publish:
+    parameters:
+      - { $ref: "#/components/parameters/AppID" }
+    post:
+      tags: [publish]
+      summary: Publish the site's CSS
+      operationId: internalPublishSite
+      description: "The site's global CSS (sanitized), first in every page's CSS."
+      parameters:
+        - { $ref: "#/components/parameters/IfMatch" }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PublishWrite" }
+      responses:
+        "200":
+          description: "Live."
+          headers: { ETag: { $ref: "#/components/headers/ETag" } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublishedSite" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "412": { $ref: "#/components/responses/Precondition" }
+        "413": { $ref: "#/components/responses/TooLarge" }
+        "422": { $ref: "#/components/responses/Invalid" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /internal/v1/apps/{app}/editor/pages/{id}/unpublish:
+    parameters:
+      - { $ref: "#/components/parameters/AppID" }
+      - { $ref: "#/components/parameters/ID" }
+    post:
+      tags: [publish]
+      summary: Unpublish a page
+      operationId: internalUnpublishPage
+      description: "Takes the page off the site; its revisions stay. The version moves on."
+      parameters:
+        - { $ref: "#/components/parameters/IfMatch" }
+      responses:
+        "200":
+          description: "The page, now a draft."
+          headers: { ETag: { $ref: "#/components/headers/ETag" } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Record" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "412": { $ref: "#/components/responses/Precondition" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /internal/v1/apps/{app}/editor/{kind}/{id}/revisions:
+    parameters:
+      - { $ref: "#/components/parameters/AppID" }
+      - { $ref: "#/components/parameters/Kind" }
+      - { $ref: "#/components/parameters/ID" }
+    get:
+      tags: [publish]
+      summary: List revisions
+      operationId: internalListRevisions
+      description: "The published revisions of a record, newest (the live one) first; the newest 20 are kept."
+      responses:
+        "200":
+          description: "The revisions."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Revisions" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /internal/v1/apps/{app}/editor/site/revisions:
+    parameters:
+      - { $ref: "#/components/parameters/AppID" }
+    get:
+      tags: [publish]
+      summary: List the site's revisions
+      operationId: internalListSiteRevisions
+      responses:
+        "200":
+          description: "The revisions."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Revisions" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /internal/v1/apps/{app}/editor/{kind}/{id}/revisions/{revision}/restore:
+    parameters:
+      - { $ref: "#/components/parameters/AppID" }
+      - { $ref: "#/components/parameters/Kind" }
+      - { $ref: "#/components/parameters/ID" }
+      - { $ref: "#/components/parameters/Revision" }
+    post:
+      tags: [publish]
+      summary: Restore a revision
+      operationId: internalRestoreRevision
+      description: "Copies the revision's project into the draft, for the editor to reopen; it is not published. The version moves on."
+      parameters:
+        - { $ref: "#/components/parameters/IfMatch" }
+      responses:
+        "200":
+          description: "The record with the restored draft in `data`."
+          headers: { ETag: { $ref: "#/components/headers/ETag" } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RecordWithData" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "412": { $ref: "#/components/responses/Precondition" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /internal/v1/apps/{app}/site:
+    parameters:
+      - { $ref: "#/components/parameters/AppID" }
+    get:
+      tags: [read]
+      summary: The site
+      operationId: internalSite
+      description: "Name, settings, the published global CSS and the menu (published pages with the value `in_menu: true`)."
+      parameters:
+        - { $ref: "#/components/parameters/IfNoneMatch" }
+      responses:
+        "200":
+          description: "The site."
+          headers: { ETag: { $ref: "#/components/headers/ETag" }, Cache-Control: { $ref: "#/components/headers/CacheControl" } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicSite" }
+        "304": { description: Not modified. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /internal/v1/apps/{app}/render:
+    parameters:
+      - { $ref: "#/components/parameters/AppID" }
+    get:
+      tags: [read]
+      summary: Render a page
+      operationId: internalRender
+      description: "The page's finished HTML (an entry's template filled with its values) in its layout's slot, the CSS in order (site, layout, page or template), SEO values and the client's own values. Published pages only; `draft=1` fills an entry with its draft values (needs `pages:write`; designs are always the published ones)."
+      parameters:
+        - { $ref: "#/components/parameters/Slug" }
+        - { $ref: "#/components/parameters/PageID" }
+        - { $ref: "#/components/parameters/Draft" }
+        - { $ref: "#/components/parameters/IfNoneMatch" }
+      responses:
+        "200":
+          description: "The page. `Cache-Control: public, max-age=60` and an ETag; drafts `no-store`."
+          headers: { ETag: { $ref: "#/components/headers/ETag" }, Cache-Control: { $ref: "#/components/headers/CacheControl" } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Rendered" }
+        "304": { description: Not modified (the ETag in If-None-Match is current). }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Invalid" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /internal/v1/apps/{app}/pages:
+    parameters:
+      - { $ref: "#/components/parameters/AppID" }
+    get:
+      tags: [read]
+      summary: List published pages
+      operationId: internalPages
+      description: "Published pages with their values, for catalogues and menus."
+      parameters:
+        - { $ref: "#/components/parameters/Template" }
+        - { $ref: "#/components/parameters/Parent" }
+        - { $ref: "#/components/parameters/Page" }
+        - { $ref: "#/components/parameters/PerPage" }
+        - { $ref: "#/components/parameters/Sort" }
+      responses:
+        "200":
+          description: "A page of results."
+          headers: { Cache-Control: { $ref: "#/components/headers/CacheControl" } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PageList" }
+        "422": { $ref: "#/components/responses/Invalid" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /internal/v1/apps/{app}/pages/{id}:
+    parameters:
+      - { $ref: "#/components/parameters/AppID" }
+      - { $ref: "#/components/parameters/ID" }
+    get:
+      tags: [read]
+      summary: Get a published page
+      operationId: internalPage
+      description: "One published page's header and values, without HTML (for a site that renders itself)."
+      responses:
+        "200":
+          description: "The page."
+          headers: { Cache-Control: { $ref: "#/components/headers/CacheControl" } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PageSummary" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
 components:
   parameters:
     AppID:
@@ -181,10 +414,64 @@ components:
       description: The version the edits are based on, quoted like an ETag (`"7"`). Omitted = unconditional (the editor's "keep mine").
       schema: { type: string, example: '"7"' }
 
+    Revision:
+      name: revision
+      in: path
+      required: true
+      description: A revision number from the revisions list.
+      schema: { type: integer, minimum: 1 }
+    Slug:
+      name: slug
+      in: query
+      description: "The page's slug, e.g. `/products/coffee-grinder` (`/` the home page). Either slug or id."
+      schema: { type: string }
+    PageID:
+      name: id
+      in: query
+      description: The page's id, instead of the slug.
+      schema: { type: string, format: uuid }
+    Draft:
+      name: draft
+      in: query
+      description: "`1`: an entry with its draft values, also when the page is not live (`pages:write`)."
+      schema: { type: string, enum: ["0", "1"] }
+    IfNoneMatch:
+      name: If-None-Match
+      in: header
+      description: An ETag from an earlier answer; `304` while it is current.
+      schema: { type: string }
+    Template:
+      name: template
+      in: query
+      description: Only entries of this template, by id or name (case-insensitive).
+      schema: { type: string, example: product }
+    Parent:
+      name: parent
+      in: query
+      description: Only children of this page.
+      schema: { type: string, format: uuid }
+    Page:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+    PerPage:
+      name: per_page
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    Sort:
+      name: sort
+      in: query
+      description: A leading `-` sorts descending.
+      schema: { type: string, enum: [published_at, -published_at, title, -title, slug, -slug, position, -position], default: -published_at }
+
   headers:
     ETag:
       description: The record's version, quoted.
       schema: { type: string, example: '"8"' }
+
+    CacheControl:
+      description: "`public, max-age=60` for published content, `no-store` for drafts."
+      schema: { type: string }
 
   responses:
     NotFound:
@@ -335,6 +622,110 @@ components:
         name: { type: string, maxLength: 200 }
         settings: { type: object, additionalProperties: true }
         data: { $ref: "#/components/schemas/Project" }
+
+    PublishWrite:
+      type: object
+      description: "`editor.getHtml()` and `editor.getCss()`; an entry sends nothing."
+      properties:
+        html: { type: string, maxLength: 2097152 }
+        css: { type: string, maxLength: 1048576 }
+        data: { $ref: "#/components/schemas/Project" }
+
+    Published:
+      type: object
+      properties:
+        record: { $ref: "#/components/schemas/Record" }
+        revision: { type: integer, description: "The new revision (0 for an entry, whose design is its template's)." }
+        warnings: { type: array, items: { type: string } }
+      required: [record, revision, warnings]
+
+    PublishedSite:
+      type: object
+      properties:
+        record: { $ref: "#/components/schemas/Site" }
+        revision: { type: integer }
+        warnings: { type: array, items: { type: string } }
+      required: [record, revision, warnings]
+
+    Revisions:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              revision: { type: integer }
+              created_at: { type: string, format: date-time }
+              created_by: { type: string, description: "`key:<key id>` or `dashboard`." }
+              live: { type: boolean }
+      required: [items]
+
+    Values:
+      type: object
+      additionalProperties: true
+
+    Rendered:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        slug: { type: string }
+        title: { type: string }
+        kind: { type: string, enum: [free, entry] }
+        template_id: { type: [string, "null"], format: uuid }
+        published_at: { type: [string, "null"], format: date-time }
+        html: { type: string, description: "The page in its layout, sanitized." }
+        css: { type: string, description: "Site, layout and page (or template) CSS, in that order." }
+        seo: { $ref: "#/components/schemas/Values", description: "The `seo.<name>` values without the prefix." }
+        meta: { $ref: "#/components/schemas/Values", description: The client's own values. }
+        version: { type: string, description: The ETag without quotes. }
+        draft: { type: boolean }
+      required: [id, slug, title, kind, html, css, seo, meta, version]
+
+    PageSummary:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        slug: { type: string }
+        title: { type: string }
+        kind: { type: string, enum: [free, entry] }
+        template_id: { type: [string, "null"], format: uuid }
+        template: { type: [string, "null"], description: The template's name. }
+        parent_id: { type: [string, "null"], format: uuid }
+        position: { type: integer }
+        published_at: { type: [string, "null"], format: date-time }
+        fields: { $ref: "#/components/schemas/Values", description: "The field values by name." }
+        seo: { $ref: "#/components/schemas/Values" }
+        meta: { $ref: "#/components/schemas/Values" }
+      required: [id, slug, title, kind, fields, seo, meta]
+
+    PageList:
+      type: object
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/PageSummary" } }
+        page: { type: integer }
+        per_page: { type: integer }
+        total: { type: integer }
+      required: [items, page, per_page, total]
+
+    PublicSite:
+      type: object
+      properties:
+        name: { type: string }
+        settings: { type: object, additionalProperties: true, description: The site's settings; public. }
+        css: { type: string }
+        menu:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              slug: { type: string }
+              title: { type: string }
+              parent_id: { type: [string, "null"], format: uuid }
+              position: { type: integer }
+        version: { type: string }
+      required: [name, settings, css, menu, version]
 
   securitySchemes:
     serviceToken:

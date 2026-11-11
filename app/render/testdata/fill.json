@@ -1,0 +1,99 @@
+{
+  "description": "Template + values -> expected HTML. The fill fixtures shared by luna-pages (Go) and grapesjs-storage's renderer (JavaScript): both must give the same output for every case.",
+  "cases": [
+    {
+      "name": "text is escaped",
+      "template": "<h1 data-field=\"title\" data-field-type=\"text\">Product name</h1>",
+      "values": {"title": "Grinder <b>2</b> & co"},
+      "html": "<h1 data-field=\"title\" data-field-type=\"text\">Grinder &lt;b&gt;2&lt;/b&gt; &amp; co</h1>"
+    },
+    {
+      "name": "a missing value keeps the placeholder",
+      "template": "<h1 data-field=\"title\" data-field-type=\"text\">Product name</h1>",
+      "values": {},
+      "html": "<h1 data-field=\"title\" data-field-type=\"text\">Product name</h1>"
+    },
+    {
+      "name": "the field list decides the type",
+      "fields": [{"name": "price", "type": "number", "format": "0.00"}],
+      "template": "<span data-field=\"price\">0</span>",
+      "values": {"price": 12.5},
+      "html": "<span data-field=\"price\">12.50</span>"
+    },
+    {
+      "name": "number by data-field-format with thousands",
+      "template": "<span data-field=\"price\" data-field-type=\"number\" data-field-format=\"#,##0.00\">0</span>",
+      "values": {"price": "1234567.5"},
+      "html": "<span data-field=\"price\" data-field-type=\"number\" data-field-format=\"#,##0.00\">1,234,567.50</span>"
+    },
+    {
+      "name": "richtext is sanitized",
+      "template": "<div data-field=\"description\" data-field-type=\"richtext\"><p>About</p></div>",
+      "values": {"description": "<p onclick=\"x()\">Fine <a href=\"javascript:alert(1)\">link</a></p><script>alert(1)</script>"},
+      "html": "<div data-field=\"description\" data-field-type=\"richtext\"><p>Fine <a>link</a></p></div>"
+    },
+    {
+      "name": "image sets src and alt",
+      "template": "<img data-field=\"photo\" data-field-type=\"image\" src=\"placeholder.png\" srcset=\"placeholder@2x.png 2x\"/>",
+      "values": {"photo": {"url": "https://cdn.example.com/a.jpg", "alt": "A grinder"}},
+      "html": "<img data-field=\"photo\" data-field-type=\"image\" src=\"https://cdn.example.com/a.jpg\" alt=\"A grinder\"/>"
+    },
+    {
+      "name": "an unsafe image URL is ignored",
+      "template": "<img data-field=\"photo\" data-field-type=\"image\" src=\"placeholder.png\"/>",
+      "values": {"photo": "javascript:alert(1)"},
+      "html": "<img data-field=\"photo\" data-field-type=\"image\" src=\"placeholder.png\" alt=\"\"/>"
+    },
+    {
+      "name": "link sets href and text",
+      "template": "<a data-field=\"more\" data-field-type=\"link\" href=\"#\">Read more</a>",
+      "values": {"more": {"url": "/products", "label": "All products"}},
+      "html": "<a data-field=\"more\" data-field-type=\"link\" href=\"/products\">All products</a>"
+    },
+    {
+      "name": "a false boolean removes the element",
+      "template": "<p>Price</p><span data-field=\"sale\" data-field-type=\"boolean\">On sale</span><p>End</p>",
+      "values": {"sale": false},
+      "html": "<p>Price</p><p>End</p>"
+    },
+    {
+      "name": "a true boolean keeps it",
+      "template": "<span data-field=\"sale\" data-field-type=\"boolean\">On sale</span>",
+      "values": {"sale": true},
+      "html": "<span data-field=\"sale\" data-field-type=\"boolean\">On sale</span>"
+    },
+    {
+      "name": "date by format",
+      "template": "<time data-field=\"released\" data-field-type=\"date\" data-field-format=\"DD.MM.YYYY\">01.01.2000</time>",
+      "values": {"released": "2026-11-11"},
+      "html": "<time data-field=\"released\" data-field-type=\"date\" data-field-format=\"DD.MM.YYYY\">11.11.2026</time>"
+    },
+    {
+      "name": "list repeats its item",
+      "fields": [{"name": "specs", "type": "list", "fields": [{"name": "name", "type": "text"}, {"name": "value", "type": "text"}]}],
+      "template": "<ul data-field=\"specs\"><li><b data-field=\"name\">Name</b>: <span data-field=\"value\">Value</span></li></ul>",
+      "values": {"specs": [{"name": "Weight", "value": "1 kg"}, {"name": "Power", "value": "150 W"}]},
+      "html": "<ul data-field=\"specs\"><li><b data-field=\"name\">Weight</b>: <span data-field=\"value\">1 kg</span></li><li><b data-field=\"name\">Power</b>: <span data-field=\"value\">150 W</span></li></ul>"
+    },
+    {
+      "name": "list item marked with data-field-item",
+      "fields": [{"name": "tags", "type": "list", "fields": [{"name": "tag", "type": "text"}]}],
+      "template": "<div data-field=\"tags\"><h3>Tags</h3><span data-field-item=\"\"><i data-field=\"tag\">tag</i></span></div>",
+      "values": {"tags": [{"tag": "steel"}, {"tag": "manual"}]},
+      "html": "<div data-field=\"tags\"><span data-field-item=\"\"><i data-field=\"tag\">steel</i></span><span data-field-item=\"\"><i data-field=\"tag\">manual</i></span></div>"
+    },
+    {
+      "name": "an empty list empties the element",
+      "fields": [{"name": "specs", "type": "list", "fields": [{"name": "name", "type": "text"}]}],
+      "template": "<ul data-field=\"specs\"><li data-field=\"name\">Name</li></ul>",
+      "values": {"specs": []},
+      "html": "<ul data-field=\"specs\"></ul>"
+    },
+    {
+      "name": "fields nested in plain elements",
+      "template": "<section class=\"card\"><div><h2 data-field=\"title\" data-field-type=\"text\">T</h2></div></section>",
+      "values": {"title": "Coffee grinder"},
+      "html": "<section class=\"card\"><div><h2 data-field=\"title\" data-field-type=\"text\">Coffee grinder</h2></div></section>"
+    }
+  ]
+}

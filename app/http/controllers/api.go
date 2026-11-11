@@ -19,10 +19,13 @@ import (
 const MaxBody = 4 << 20
 
 // API serves /v1 and, with the same handlers, the dashboard's internal API.
-type API struct{ App *fullstack.App }
+type API struct {
+	App   *fullstack.App
+	cache *cache
+}
 
-// NewAPI makes the handlers.
-func NewAPI(app *fullstack.App) API { return API{App: app} }
+// NewAPI makes the handlers (one rendered-page cache for both groups).
+func NewAPI(app *fullstack.App) API { return API{App: app, cache: newCache()} }
 
 func (h API) store() (*store.Store, error) { return fullstack.Make[*store.Store](h.App) }
 

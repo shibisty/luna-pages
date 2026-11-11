@@ -8,8 +8,9 @@ Template / Page, `content` and `metadata`).
 
 An API-only [fullstack](https://github.com/shibisty/fullstack.go) application on Postgres.
 
-State: stage 2 of the design. The editor contract works (drafts); publishing, rendering and the
-public read API (`pages:read`, browser keys allowed) come next.
+State: stage 3 of the design. The editor contract (drafts), publishing with revisions, and the
+read API that renders pages (`pages:read`, browser keys allowed) work; the GrapesJS plugins and
+the dashboard's editor come next.
 
 ## The editor contract
 
@@ -42,6 +43,54 @@ backend), and under `/internal/v1/apps/{app}/editor` for the dashboard's editor.
 - **Limits**: 4 MiB a request, 2 MiB a project, 1,000 records of a kind, 100 fields, 200 values
   of 64 KiB.
 
+## Publishing
+
+| Request | |
+|---|---|
+| `POST /v1/editor/{kind}/{id}/publish` | `{html, css, data?}` (`editor.getHtml()`, `editor.getCss()`) becomes the live revision; an entry sends no body |
+| `POST /v1/editor/site/publish` | `{css}`: the site's global CSS |
+| `POST /v1/editor/pages/{id}/unpublish` | takes a page off the site |
+| `GET /v1/editor/{kind}/{id}/revisions`, `GET /v1/editor/site/revisions` | the published revisions, newest (live) first |
+| `POST /v1/editor/{kind}/{id}/revisions/{n}/restore` | the revision's project becomes the draft (not published) |
+
+- **Sanitizing.** What the editor sends is untrusted: the HTML goes through an allow-list
+  (`app/render`): no `<script>`, `<style>`, `<object>`, forms' inputs; no `on*` attributes; URLs
+  only `http(s)`, `mailto`, `tel`, relative, and `data:image/…` (not SVG) for images; `<iframe>`
+  only over https from YouTube, Vimeo, Google Maps, Spotify; `target="_blank"` links get
+  `rel="noopener noreferrer"`; `data-*`, `aria-*`, `class`, `style` (cleaned) stay. The CSS loses
+  `expression()`, `behavior`, `javascript:` URLs, `@import` (except font hosts) and anything that
+  would close a `<style>`. Site settings widen it: `"custom_code": true` keeps scripts,
+  `"iframe_hosts": [...]` adds hosts.
+- **Layouts** need `<luna-slot></luna-slot>` (or an element with `data-luna-slot`) where the page
+  goes. **Templates** answer with warnings for fields without an element.
+- **Entries** publish their draft values, checked against the template's fields (required,
+  types, select options, list items; `422` names the key, e.g. `field.specs.0.name`); the
+  template must be published first. An entry always renders with its template's live revision.
+- **Revisions**: every publish adds one; the newest 20 are kept per record.
+
+## The read API
+
+`pages:read`, which browser keys may hold (from the key's origins): published content only.
+
+| Request | |
+|---|---|
+| `GET /v1/render?slug=/products/coffee-grinder` (or `?id=`) | `{html, css, title, seo, meta, version, …}`: the page in its layout, an entry filled with its values, CSS in order (site, layout, page or template) |
+| `GET /v1/pages?template=product&parent=&page=&per_page=&sort=` | published pages with `fields`, `seo`, `meta` (catalogues); sort by `published_at`, `title`, `slug`, `position`, `-` for descending |
+| `GET /v1/pages/{id}` | one published page's header and values, no HTML |
+| `GET /v1/site` | name, settings, global CSS, menu (published pages with `in_menu: true`) |
+
+- **Caching**: `/render` and `/site` answer with an ETag that changes with anything that can
+  change the result (`304` on `If-None-Match`) and `Cache-Control: public, max-age=60`; rendered
+  pages are also kept in memory until something is published.
+- **Previews**: `?draft=1` on `/render` (needs `pages:write`, always allowed on the internal API)
+  fills an entry with its draft values; designs are always the live ones.
+- **Filling fields** (`render.Fill`): elements marked `data-field="<name>"` get the value by type:
+  text escaped, rich text sanitized, `src`/`alt` for images, `href` and text for links, numbers by
+  `format` (`0.00`, `#,##0`), dates by `YYYY`/`MM`/`DD`, a false boolean removes the element, a list
+  repeats its first child (or its `data-field-item` child) per item. A value that is missing keeps
+  the template's placeholder. The cases in `app/render/testdata/fill.json` are shared with
+  grapesjs-storage's renderer.
+
 ## Documentation
 
 - **OpenAPI 3.1**: [`docs/openapi.yaml`](docs/openapi.yaml) at `GET /openapi.yaml`,
@@ -49,7 +98,7 @@ backend), and under `/internal/v1/apps/{app}/editor` for the dashboard's editor.
   `/docs` and `/internal/docs` with `API_DOCS=true`. A test keeps both in step with the routes.
 - **Postman**: [`docs/postman/luna-pages.postman_collection.json`](docs/postman/luna-pages.postman_collection.json)
   with [`docs/postman/luna-local.postman_environment.json`](docs/postman/luna-local.postman_environment.json);
-  set `apiKey` to a server key with `pages:write`.
+  set `apiKey` to a server key with `pages:read` and `pages:write`.
 
 ## Run
 

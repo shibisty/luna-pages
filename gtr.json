@@ -12,6 +12,7 @@
         "fullstack": "github:shibisty/fullstack.go#^0.1",
         "fullstack-orm": "github:shibisty/fullstack.go-orm#^0.1",
         "fullstack-validation": "github:shibisty/fullstack.go-validation#^0.1",
+        "golang.org/x/net": "~0.25.0",
         "luna-keys": "workspace:^0.1",
         "migration": "github:shibisty/migration.go#^0.1",
         "migration-orm": "github:shibisty/migration.go-orm-driver#^0.1",

@@ -69,7 +69,7 @@ func newDBApp(t *testing.T, dashboardURL string) *fullstack.App {
 		t.Skip("TEST_DATABASE_DSN is not set (a Postgres database for the tests)")
 	}
 	env(t, dashboardURL, map[string]string{"DATABASE_DSN": dsn, "DB_PING": "true", "DB_MIGRATE": "true"})
-	app, err := bootstrap.NewApp(fullstack.Options{EnvFiles: []string{}, LogOutput: io.Discard})
+	app, err := bootstrap.NewApp(fullstack.Options{EnvFiles: []string{}, LogOutput: logOutput()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,10 +80,19 @@ func newDBApp(t *testing.T, dashboardURL string) *fullstack.App {
 	return app
 }
 
+// logOutput is where the application logs in tests: nowhere, or stderr
+// with TEST_LOG=1 (to see a 500's cause).
+func logOutput() io.Writer {
+	if os.Getenv("TEST_LOG") != "" {
+		return os.Stderr
+	}
+	return io.Discard
+}
+
 // world is the shop with a writer key, a server reader, a browser reader,
 // and the blog with a writer of its own.
 type world struct {
-	c                                        *apptest.Client
+	c                                       *apptest.Client
 	writer, reader, browser, blog, authOnly string
 }
 

@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "89b226c9-0fac-5017-8d4d-b3ad86e6412e",
     "name": "Luna Pages API",
-    "description": "The editor contract of luna-pages (docs/openapi.yaml). Set `apiKey` to a server key with `pages:write`. Run in order: every run creates its own layout, template, page and entry and deletes them at the end.",
+    "description": "The editor contract, publishing and the read API of luna-pages (docs/openapi.yaml). Set `apiKey` to a server key with `pages:read` and `pages:write`. Run in order: every run creates its own layout, template, page and entry, publishes and reads them, and deletes them at the end.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -414,7 +414,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Coffee grinder\",\n  \"slug\": \"/products/{{entryId}}\",\n  \"template_id\": \"{{templateId}}\",\n  \"values\": {\n    \"field.title\": \"Coffee grinder\",\n    \"field.price\": 129.5\n  }\n}",
+              "raw": "{\n  \"name\": \"Coffee grinder\",\n  \"slug\": \"/products/{{entryId}}\",\n  \"template_id\": \"{{templateId}}\",\n  \"values\": {\n    \"field.title\": \"Coffee grinder\",\n    \"field.price\": 129.5\n  },\n  \"layout_id\": \"{{layoutId}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -494,6 +494,416 @@
                 "exec": [
                   "pm.test(\"status 200\", () => pm.response.to.have.status(200));",
                   "pm.test(\"items\", () => pm.expect(pm.response.json().items.length).to.be.at.least(2));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Publish the layout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/editor/layouts/{{layoutId}}/publish",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "editor",
+                "layouts",
+                "{{layoutId}}",
+                "publish"
+              ]
+            },
+            "description": "A layout needs a <luna-slot>; the HTML and CSS are sanitized.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"html\": \"<header>Postman shop</header><main><luna-slot></luna-slot></main>\",\n  \"css\": \"header{font-weight:bold}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"revision 1\", () => pm.expect(pm.response.json().revision).to.eql(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Publish the template",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/editor/templates/{{templateId}}/publish",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "editor",
+                "templates",
+                "{{templateId}}",
+                "publish"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"html\": \"<article><h1 data-field=\\\"title\\\">Name</h1><p>Price: <span data-field=\\\"price\\\">0.00</span></p><script>alert(1)</script></article>\",\n  \"css\": \"article{padding:1rem}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"no warnings\", () => pm.expect(pm.response.json().warnings).to.have.length(0));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Publish the entry",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/editor/pages/{{entryId}}/publish",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "editor",
+                "pages",
+                "{{entryId}}",
+                "publish"
+              ]
+            },
+            "description": "An entry sends no body: its draft values are checked against the template and go live."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"published\", () => pm.expect(pm.response.json().record.status).to.eql(\"published\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Render the entry",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/render?slug=/products/{{entryId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "render"
+              ],
+              "query": [
+                {
+                  "key": "slug",
+                  "value": "/products/{{entryId}}"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+                  "const page = pm.response.json();",
+                  "pm.test(\"filled, in the layout\", () => { pm.expect(page.html).to.include(\"<header>Postman shop</header>\"); pm.expect(page.html).to.include(\"129.50\"); });",
+                  "pm.test(\"sanitized\", () => pm.expect(page.html).to.not.include(\"<script>\"));",
+                  "pm.test(\"css in order\", () => pm.expect(page.css).to.eql(\"header{font-weight:bold}\\narticle{padding:1rem}\"));",
+                  "pm.environment.set(\"renderTag\", pm.response.headers.get(\"ETag\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Not modified",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "If-None-Match",
+                "value": "{{renderTag}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/render?slug=/products/{{entryId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "render"
+              ],
+              "query": [
+                {
+                  "key": "slug",
+                  "value": "/products/{{entryId}}"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 304\", () => pm.response.to.have.status(304));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List the template's entries",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/pages?template={{templateId}}&per_page=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "pages"
+              ],
+              "query": [
+                {
+                  "key": "template",
+                  "value": "{{templateId}}"
+                },
+                {
+                  "key": "per_page",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"one entry\", () => pm.expect(pm.response.json().total).to.eql(1));",
+                  "pm.test(\"values\", () => pm.expect(pm.response.json().items[0].fields.price).to.eql(129.5));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A published page",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/pages/{{entryId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "pages",
+                "{{entryId}}"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"title\", () => pm.expect(pm.response.json().fields.title).to.eql(\"Coffee grinder\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "The public site",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/site",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "site"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"name\", () => pm.expect(pm.response.json().name).to.eql(\"Postman shop\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "The layout's revisions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/editor/layouts/{{layoutId}}/revisions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "editor",
+                "layouts",
+                "{{layoutId}}",
+                "revisions"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"one live revision\", () => { const r = pm.response.json().items; pm.expect(r).to.have.length(1); pm.expect(r[0].live).to.eql(true); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Unpublish the entry",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/editor/pages/{{entryId}}/unpublish",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "editor",
+                "pages",
+                "{{entryId}}",
+                "unpublish"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"draft\", () => pm.expect(pm.response.json().status).to.eql(\"draft\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "An unpublished page is gone",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/render?slug=/products/{{entryId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "render"
+              ],
+              "query": [
+                {
+                  "key": "slug",
+                  "value": "/products/{{entryId}}"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 404\", () => pm.response.to.have.status(404));"
                 ]
               }
             }
