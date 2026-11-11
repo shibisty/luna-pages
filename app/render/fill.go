@@ -261,7 +261,8 @@ func formatDate(s, format string) string {
 }
 
 // Compose puts a page's HTML into its layout: in place of the layout's
-// <luna-slot> element, or inside the element marked data-luna-slot.
+// <luna-slot> (or <page-slot>) element, or inside the element marked
+// data-luna-slot (or data-page-slot).
 // Without a slot the page follows the layout.
 func Compose(layout, body string) (string, error) {
 	if strings.TrimSpace(layout) == "" {
@@ -296,7 +297,7 @@ func findSlot(nodes []*html.Node) *html.Node {
 		if n.Type != html.ElementNode {
 			continue
 		}
-		if n.Data == SlotTag || hasAttr(n, "data-luna-slot") {
+		if isSlot(n) {
 			return n
 		}
 		var kids []*html.Node
@@ -316,7 +317,7 @@ func placeSlot(layout, body []*html.Node) ([]*html.Node, bool) {
 	if slot == nil {
 		return layout, false
 	}
-	if slot.Data != SlotTag {
+	if !isSlotTag(slot.Data) {
 		setChildren(slot, body)
 		return layout, true
 	}

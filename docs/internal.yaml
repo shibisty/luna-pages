@@ -167,7 +167,7 @@ paths:
       tags: [publish]
       summary: Publish a record
       operationId: internalPublishRecord
-      description: "The published HTML and CSS. The HTML is sanitized here (no scripts, no event handlers, no `javascript:` URLs, iframes from the allowed hosts only; the site settings `custom_code` and `iframe_hosts` widen that), the CSS too. A layout needs a `<luna-slot>`. An entry sends no body: its draft values are checked against its template's fields and published; its template must be published. `data` (the project) is saved as the draft first. The version moves on."
+      description: "The published HTML and CSS. The HTML is sanitized here (no scripts, no event handlers, no `javascript:` URLs, iframes from the allowed hosts only; the site settings `custom_code` and `iframe_hosts` widen that), the CSS too. A layout needs a `<page-slot>` or `<luna-slot>` (or `data-page-slot` / `data-luna-slot`). An entry sends no body: its draft values are checked against its template's fields and published; its template must be published. `data` (the project) is saved as the draft first. The version moves on."
       parameters:
         - { $ref: "#/components/parameters/IfMatch" }
       requestBody:

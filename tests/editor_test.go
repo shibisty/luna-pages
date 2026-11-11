@@ -59,6 +59,10 @@ func TestLayoutsTemplatesPages(t *testing.T) {
 	}
 	c.PutJSON("/v1/editor/templates/"+templateID, map[string]any{"name": "Product", "fields": fields, "data": project}).
 		AssertCreated().AssertJSONCount("fields", 4).AssertJSONPath("fields.3.fields.1.name", "value")
+	// A write without fields (grapesjs-pages saving the design) keeps them; [] clears.
+	c.PutJSON("/v1/editor/templates/"+templateID, map[string]any{"name": "Product", "data": project}).AssertOK().AssertJSONCount("fields", 4)
+	c.PutJSON("/v1/editor/templates/"+templateID, map[string]any{"name": "Product", "fields": []any{}}).AssertOK().AssertJSONMissing("fields")
+	c.PutJSON("/v1/editor/templates/"+templateID, map[string]any{"name": "Product", "fields": fields}).AssertOK().AssertJSONCount("fields", 4)
 	for _, bad := range []map[string]any{
 		{"name": "Title", "type": "text"},
 		{"name": "x", "type": "video"},

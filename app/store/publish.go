@@ -137,7 +137,7 @@ func (s *Store) Publish(ctx context.Context, app string, k Kind, id string, in P
 		}
 		switch {
 		case k == Layout && !render.HasSlot(htmlOut):
-			return invalid("html", "A layout needs a <luna-slot></luna-slot> (or an element with data-luna-slot) where the page goes.")
+			return invalid("html", "A layout needs a <page-slot></page-slot> or <luna-slot></luna-slot> (or an element with data-page-slot or data-luna-slot) where the page goes.")
 		case k == Template:
 			fields, err := templateFields(ctx, tx, app, id)
 			if err != nil {

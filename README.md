@@ -31,13 +31,17 @@ backend), and under `/internal/v1/apps/{app}/editor` for the dashboard's editor.
 - **Versions**: every record has a `version` (also the `ETag`) that changes on every write;
   `If-Match: "7"` makes a write or delete conditional (`412` when it moved on), as
   grapesjs-pages' sync expects. Without `If-Match` a write is unconditional.
+- **grapesjs-pages v2** (its `remote` option, contract `openapi.v2.yaml`) is the editor this API
+  was built for: point `remote.url` at `…/v1/editor` and put the key in `remote.headers` (from a
+  backend proxy: never a server key in a browser).
 - **grapesjs-pages v1** works unchanged with the base URL `…/v1/editor` and the key in its
   `headers` option: it sends `{id, name, data}` to `/pages/{id}`; the page gets a slug from its
   name (`/home-sweet-home`, then `-2`…).
 - **Pages**: `slug` (`/` or `/a/b-c`, unique per application), `layout_id`, `parent_id`,
   `position`; with `template_id` a page is an *entry* of that template. `values` sets keys
   (`field.price`, `seo.description`, the client's own), `null` deletes one, keys not sent stay.
-- **Templates**: `fields` = `[{name, type, label, required, default, options, format, fields}]`;
+- **Templates**: `fields` = `[{name, type, label, required, default, options, format, fields}]`
+  (omitted on a write: they stay; `[]` clears them);
   types `text`, `richtext`, `image`, `link`, `number`, `boolean`, `date`, `select`, `list` (a
   repeater with its item's fields, one level).
 - **Limits**: 4 MiB a request, 2 MiB a project, 1,000 records of a kind, 100 fields, 200 values
@@ -61,8 +65,8 @@ backend), and under `/internal/v1/apps/{app}/editor` for the dashboard's editor.
   `expression()`, `behavior`, `javascript:` URLs, `@import` (except font hosts) and anything that
   would close a `<style>`. Site settings widen it: `"custom_code": true` keeps scripts,
   `"iframe_hosts": [...]` adds hosts.
-- **Layouts** need `<luna-slot></luna-slot>` (or an element with `data-luna-slot`) where the page
-  goes. **Templates** answer with warnings for fields without an element.
+- **Layouts** need `<page-slot></page-slot>` (grapesjs-pages' slot) or `<luna-slot></luna-slot>` (or an
+  element with `data-page-slot` / `data-luna-slot`) where the page goes. **Templates** answer with warnings for fields without an element.
 - **Entries** publish their draft values, checked against the template's fields (required,
   types, select options, list items; `422` names the key, e.g. `field.specs.0.name`); the
   template must be published first. An entry always renders with its template's live revision.

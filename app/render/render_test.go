@@ -88,6 +88,7 @@ func TestSanitizeHTML(t *testing.T) {
 			`<div style="color: red; background: url()">x</div>`},
 		{"expression in style removed", `<div style="width: expression(alert(1))">x</div>`, `<div style="width: x(alert(1))">x</div>`},
 		{"slot kept", `<header>h</header><luna-slot></luna-slot>`, `<header>h</header><luna-slot></luna-slot>`},
+		{"page-slot kept", `<page-slot id="i3"></page-slot>`, `<page-slot id="i3"></page-slot>`},
 		{"svg kept", `<svg viewBox="0 0 10 10"><path d="M0 0L10 10" onclick="x()"></path></svg>`,
 			`<svg viewBox="0 0 10 10"><path d="M0 0L10 10"></path></svg>`},
 		{"svg script dropped", `<svg><script>alert(1)</script><a href="javascript:x"><text>t</text></a></svg>`, `<svg><a><text>t</text></a></svg>`},
@@ -157,6 +158,8 @@ func TestCompose(t *testing.T) {
 		{"top-level slot", `<header>H</header><luna-slot></luna-slot><footer>F</footer>`, `<p>x</p>`, `<header>H</header><p>x</p><footer>F</footer>`},
 		{"slot attribute", `<main data-luna-slot="">placeholder</main>`, `<p>x</p>`, `<main data-luna-slot=""><p>x</p></main>`},
 		{"no slot: appended", `<header>H</header>`, `<p>x</p>`, `<header>H</header><p>x</p>`},
+		{"grapesjs-pages slot", `<header>H</header><page-slot id="i3"></page-slot>`, `<p>x</p>`, `<header>H</header><p>x</p>`},
+		{"grapesjs-pages slot attribute", `<main data-page-slot="">placeholder</main>`, `<p>x</p>`, `<main data-page-slot=""><p>x</p></main>`},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -169,7 +172,8 @@ func TestCompose(t *testing.T) {
 			}
 		})
 	}
-	if !HasSlot(`<div><luna-slot></luna-slot></div>`) || !HasSlot(`<div data-luna-slot></div>`) || HasSlot(`<div></div>`) {
+	if !HasSlot(`<div><luna-slot></luna-slot></div>`) || !HasSlot(`<div data-luna-slot></div>`) || !HasSlot(`<page-slot></page-slot>`) ||
+		!HasSlot(`<div data-page-slot></div>`) || HasSlot(`<div></div>`) {
 		t.Error("HasSlot")
 	}
 }

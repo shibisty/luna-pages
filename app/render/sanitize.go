@@ -36,8 +36,38 @@ var DefaultIframeHosts = []string{
 }
 
 // SlotTag is the element a layout marks the page's place with; an element
-// with the attribute data-luna-slot works too.
+// with the attribute data-luna-slot works too, and so do grapesjs-pages'
+// own <page-slot> and data-page-slot (SlotTags, SlotAttrs).
 const SlotTag = "luna-slot"
+
+// SlotTags and SlotAttrs: every way a layout may mark the slot.
+var (
+	SlotTags  = []string{SlotTag, "page-slot"}
+	SlotAttrs = []string{"data-luna-slot", "data-page-slot"}
+)
+
+func isSlot(n *html.Node) bool {
+	for _, t := range SlotTags {
+		if n.Data == t {
+			return true
+		}
+	}
+	for _, a := range SlotAttrs {
+		if hasAttr(n, a) {
+			return true
+		}
+	}
+	return false
+}
+
+func isSlotTag(name string) bool {
+	for _, t := range SlotTags {
+		if name == t {
+			return true
+		}
+	}
+	return false
+}
 
 // Elements kept as they are. Anything else that is not dropped (below) is
 // unwrapped: its children stay, the element goes (a <form> keeps its text).
@@ -51,7 +81,7 @@ func init() {
 		section small source span strong sub summary sup table tbody td tfoot th thead time
 		tr u ul var wbr audio video track iframe button label
 		svg g path circle ellipse line polyline polygon rect text tspan defs use symbol
-		lineargradient radialgradient stop clippath mask title desc ` + SlotTag) {
+		lineargradient radialgradient stop clippath mask title desc ` + strings.Join(SlotTags, " ")) {
 		allowedElements[e] = true
 	}
 }

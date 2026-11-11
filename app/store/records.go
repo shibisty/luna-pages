@@ -244,7 +244,13 @@ func (s *Store) Put(ctx context.Context, app string, k Kind, id string, in Input
 				ON CONFLICT (app_id, id) DO UPDATE SET name = EXCLUDED.name, version = layouts.version + 1, updated_at = now() AT TIME ZONE 'UTC'`,
 				app, id, name)
 		case Template:
-			fields, _ := json.Marshal(nonNil(in.Fields))
+			// Omitted fields stay (grapesjs-pages saves a template's design
+			// without knowing its fields); [] clears them.
+			list := in.Fields
+			if list == nil && !created {
+				list = cur.Fields
+			}
+			fields, _ := json.Marshal(nonNil(list))
 			err = upsert(ctx, tx, `INSERT INTO templates (app_id, id, name, fields) VALUES ($1, $2, $3, $4)
 				ON CONFLICT (app_id, id) DO UPDATE SET name = EXCLUDED.name, fields = EXCLUDED.fields, version = templates.version + 1, updated_at = now() AT TIME ZONE 'UTC'`,
 				app, id, name, string(fields))
