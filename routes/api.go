@@ -33,6 +33,7 @@ func API(app *fullstack.App, v keys.Verifier, serviceToken string) {
 		r.Get("/ping", api.Ping, anyKey).Name("v1.ping")
 		public(r, api, read)
 		editor(r, api, write)
+		content(r, api, write)
 	})
 
 	// The dashboard's editor and previews, through the dashboard (which
@@ -41,6 +42,7 @@ func API(app *fullstack.App, v keys.Verifier, serviceToken string) {
 	app.Router.Group("/internal/v1/apps/{app}", func(r *web.Router) {
 		public(r, api, nil)
 		editor(r, api, nil)
+		content(r, api, nil)
 	}, web.Middleware(keys.Internal(serviceToken, keys.PagesRead, keys.PagesWrite)))
 }
 
@@ -77,4 +79,18 @@ func editor(r *web.Router, api controllers.API, guard web.Middleware) {
 	r.Post("/editor/pages/{id}/unpublish", api.Unpublish, mw...)
 	r.Get("/editor/{kind}/{id}/revisions", api.Revisions, mw...)
 	r.Post("/editor/{kind}/{id}/revisions/{revision}/restore", api.Restore, mw...)
+}
+
+// content is grapesjs-storage's REST contract (pages:write): templates as
+// their fields, entries as pages of a template with plain value keys.
+func content(r *web.Router, api controllers.API, guard web.Middleware) {
+	mw := guards(guard)
+	r.Get("/content/templates", api.ContentTemplates, mw...)
+	r.Get("/content/templates/{id}", api.ContentTemplate, mw...)
+	r.Put("/content/templates/{id}", api.PutContentTemplate, mw...)
+	r.Get("/content/entries", api.ContentEntries, mw...)
+	r.Get("/content/entries/{id}", api.ContentEntry, mw...)
+	r.Put("/content/entries/{id}", api.PutContentEntry, mw...)
+	r.Delete("/content/entries/{id}", api.DeleteContentEntry, mw...)
+	r.Post("/content/entries/{id}/publish", api.PublishContentEntry, mw...)
 }

@@ -36,6 +36,8 @@ tags:
     description: Published content for the site (pages:read; browser keys allowed).
   - name: service
     description: Liveness and key checks.
+  - name: content
+    description: "grapesjs-storage's REST contract (its openapi.yaml): templates as their fields, entries with values by field name (pages:write)."
 
 paths:
   /healthz:
@@ -456,6 +458,243 @@ paths:
         "403": { $ref: "#/components/responses/ReadForbidden" }
         "503": { $ref: "#/components/responses/KeysUnavailable" }
 
+  /v1/content/templates:
+    get:
+      tags:
+      - content
+      summary: List templates
+      operationId: contentListTemplates
+      description: Every template with its fields, without the design.
+      responses:
+        '200':
+          description: The templates.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ContentTemplate'
+                required:
+                - items
+        '401':
+          $ref: '#/components/responses/KeyInvalid'
+        '403':
+          $ref: '#/components/responses/KeyForbidden'
+        '503':
+          $ref: '#/components/responses/KeysUnavailable'
+  /v1/content/templates/{id}:
+    parameters:
+    - $ref: '#/components/parameters/ContentID'
+    get:
+      tags:
+      - content
+      summary: Get a template
+      operationId: contentGetTemplate
+      description: The template with its design (`data`) when the server has one.
+      responses:
+        '200':
+          description: The template.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContentTemplateWithData'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/KeyInvalid'
+        '403':
+          $ref: '#/components/responses/KeyForbidden'
+        '503':
+          $ref: '#/components/responses/KeysUnavailable'
+    put:
+      tags:
+      - content
+      summary: Save a template's fields
+      operationId: contentSaveTemplate
+      description: Replaces the fields; `name` is required to create one; `data` replaces the design when sent.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContentTemplateWrite'
+      responses:
+        '200':
+          description: Saved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContentTemplate'
+        '201':
+          description: Created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContentTemplate'
+        '422':
+          $ref: '#/components/responses/Invalid'
+        '401':
+          $ref: '#/components/responses/KeyInvalid'
+        '403':
+          $ref: '#/components/responses/KeyForbidden'
+        '503':
+          $ref: '#/components/responses/KeysUnavailable'
+  /v1/content/entries:
+    get:
+      tags:
+      - content
+      summary: List entries
+      operationId: contentListEntries
+      description: Entries of a template (all without `template`); `values` may be left out.
+      parameters:
+      - name: template
+        in: query
+        schema:
+          type: string
+      responses:
+        '200':
+          description: The entries.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ContentEntry'
+                required:
+                - items
+        '401':
+          $ref: '#/components/responses/KeyInvalid'
+        '403':
+          $ref: '#/components/responses/KeyForbidden'
+        '503':
+          $ref: '#/components/responses/KeysUnavailable'
+  /v1/content/entries/{id}:
+    parameters:
+    - $ref: '#/components/parameters/ContentID'
+    get:
+      tags:
+      - content
+      summary: Get an entry
+      operationId: contentGetEntry
+      responses:
+        '200':
+          description: The entry with its values.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContentEntry'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/KeyInvalid'
+        '403':
+          $ref: '#/components/responses/KeyForbidden'
+        '503':
+          $ref: '#/components/responses/KeysUnavailable'
+    put:
+      tags:
+      - content
+      summary: Create or replace an entry
+      operationId: contentPutEntry
+      parameters:
+      - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContentEntryWrite'
+      responses:
+        '200':
+          description: Saved.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContentEntry'
+        '201':
+          description: Created.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContentEntry'
+        '412':
+          $ref: '#/components/responses/Precondition'
+        '422':
+          $ref: '#/components/responses/Invalid'
+        '401':
+          $ref: '#/components/responses/KeyInvalid'
+        '403':
+          $ref: '#/components/responses/KeyForbidden'
+        '503':
+          $ref: '#/components/responses/KeysUnavailable'
+    delete:
+      tags:
+      - content
+      summary: Delete an entry
+      operationId: contentDeleteEntry
+      parameters:
+      - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: Deleted.
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '412':
+          $ref: '#/components/responses/Precondition'
+        '401':
+          $ref: '#/components/responses/KeyInvalid'
+        '403':
+          $ref: '#/components/responses/KeyForbidden'
+        '503':
+          $ref: '#/components/responses/KeysUnavailable'
+  /v1/content/entries/{id}/publish:
+    parameters:
+    - $ref: '#/components/parameters/ContentID'
+    post:
+      tags:
+      - content
+      summary: Publish an entry
+      operationId: contentPublishEntry
+      description: Optional for a server; the values go live (the server checks them against the fields).
+      parameters:
+      - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '200':
+          description: Live.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContentEntry'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '412':
+          $ref: '#/components/responses/Precondition'
+        '422':
+          $ref: '#/components/responses/Invalid'
+        '401':
+          $ref: '#/components/responses/KeyInvalid'
+        '403':
+          $ref: '#/components/responses/KeyForbidden'
+        '503':
+          $ref: '#/components/responses/KeysUnavailable'
 components:
   parameters:
     Kind:
@@ -526,6 +765,15 @@ components:
       in: query
       description: A leading `-` sorts descending.
       schema: { type: string, enum: [published_at, -published_at, title, -title, slug, -slug, position, -position], default: -published_at }
+
+    ContentID:
+      name: id
+      in: path
+      required: true
+      description: The record's id (a UUID the editor makes).
+      schema:
+        type: string
+        format: uuid
 
   headers:
     ETag:
@@ -806,6 +1054,97 @@ components:
         version: { type: string }
       required: [name, settings, css, menu, version]
 
+    ContentTemplate:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        fields:
+          type: array
+          items:
+            $ref: '#/components/schemas/Field'
+        version:
+          type:
+          - string
+          - integer
+        updated_at:
+          type: string
+          format: date-time
+      required:
+      - id
+      - name
+      - fields
+    ContentTemplateWithData:
+      allOf:
+      - $ref: '#/components/schemas/ContentTemplate'
+      - type: object
+        properties:
+          data:
+            type:
+            - object
+            - 'null'
+            description: The GrapesJS project of the design.
+    ContentTemplateWrite:
+      type: object
+      properties:
+        name:
+          type: string
+        fields:
+          type: array
+          items:
+            $ref: '#/components/schemas/Field'
+        data:
+          type:
+          - object
+          - 'null'
+      required:
+      - fields
+    ContentEntry:
+      type: object
+      properties:
+        id:
+          type: string
+        template_id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+        status:
+          type: string
+          enum:
+          - draft
+          - published
+          - archived
+        values:
+          $ref: '#/components/schemas/Values'
+        version:
+          type:
+          - string
+          - integer
+        updated_at:
+          type: string
+          format: date-time
+      required:
+      - id
+      - template_id
+      - name
+    ContentEntryWrite:
+      type: object
+      properties:
+        template_id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+        values:
+          $ref: '#/components/schemas/Values'
+      required:
+      - template_id
+      - name
   securitySchemes:
     apiKey:
       type: apiKey

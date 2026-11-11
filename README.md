@@ -95,6 +95,21 @@ backend), and under `/internal/v1/apps/{app}/editor` for the dashboard's editor.
   the template's placeholder. The cases in `app/render/testdata/fill.json` are shared with
   grapesjs-storage's renderer.
 
+## The content API
+
+grapesjs-storage's REST contract (`RestContentStore`), under `/v1/content` with `pages:write`
+and under `/internal/v1/apps/{app}/content`. It is a view of the same records: templates and
+entries are the editor API's templates and pages.
+
+| Request | |
+|---|---|
+| `GET /v1/content/templates`, `GET /v1/content/templates/{id}` | templates with their `fields` (and `data` for one) |
+| `PUT /v1/content/templates/{id}` | saves `name`, `fields` and the project; does not bump the version, so grapesjs-pages gets no `412` |
+| `GET /v1/content/entries?template=`, `GET /v1/content/entries/{id}` | entries with plain keys in `values` (`title`, not `field.title`) |
+| `PUT /v1/content/entries/{id}` | `{template_id, name, slug?, values}` creates or replaces |
+| `DELETE /v1/content/entries/{id}` | 204 |
+| `POST /v1/content/entries/{id}/publish` | the same check and revision as the editor API's publish |
+
 ## Documentation
 
 - **OpenAPI 3.1**: [`docs/openapi.yaml`](docs/openapi.yaml) at `GET /openapi.yaml`,

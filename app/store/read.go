@@ -108,7 +108,9 @@ func (s *Store) PageView(ctx context.Context, app, slugOrID string, draft bool) 
 			return View{}, err
 		}
 		v.Fields, v.Body, bodyCSS = t.Fields, body.HTML, body.CSS
-		tag = append(tag, fmt.Sprintf("t%d.%d", t.Version, body.Revision))
+		// The fields change without the version (the content API): in the tag too.
+		fields, _ := json.Marshal(t.Fields)
+		tag = append(tag, fmt.Sprintf("t%d.%d.%x", t.Version, body.Revision, sha256.Sum256(fields)))
 	} else {
 		body, err := latest(ctx, db, app, Page, v.Page.ID)
 		if err != nil {
