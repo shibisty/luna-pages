@@ -12,7 +12,10 @@ import (
 // would close a <style> element. Everything else is the site's design.
 
 // FontHosts are the origins @import may load from.
-var FontHosts = []string{"https://fonts.googleapis.com/", "https://fonts.bunny.net/", "https://use.typekit.net/"}
+var FontHosts = []string{
+	"https://fonts.googleapis.com/", "https://fonts.bunny.net/", "https://use.typekit.net/",
+	"https://api.fontshare.com/v2/css", "https://cdn.jsdelivr.net/npm/@fontsource/", "https://cdn.jsdelivr.net/npm/@fontsource-variable/",
+}
 
 var (
 	cssComment    = regexp.MustCompile(`(?s)/\*.*?\*/`)

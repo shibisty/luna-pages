@@ -128,6 +128,18 @@ func TestSanitizePolicy(t *testing.T) {
 	if got != want {
 		t.Errorf("custom code:\n got: %s\nwant: %s", got, want)
 	}
+	links := `<link rel="stylesheet" href="https://cdn.example.com/a.css" integrity="sha384-x" crossorigin="anonymous" onload="x()">` +
+		`<link rel="stylesheet" href="http://cdn.example.com/b.css"><link rel="preload" href="https://cdn.example.com/c.js"><link rel="stylesheet" href="javascript:alert(1)">`
+	if got, _ = SanitizeHTML(links, Policy{}); got != "" {
+		t.Errorf("strict links: %s", got)
+	}
+	got, _ = SanitizeHTML(links, Policy{CustomCode: true})
+	if want := `<link rel="stylesheet" href="https://cdn.example.com/a.css" integrity="sha384-x" crossorigin="anonymous"/>`; got != want {
+		t.Errorf("links:\n got: %s\nwant: %s", got, want)
+	}
+	if !HasCode(`<p>x</p><div><script>1</script></div>`) || !HasCode(links) || HasCode(`<p>script</p>`) {
+		t.Error("HasCode")
+	}
 	got, _ = SanitizeHTML(`<script src="javascript:alert(1)"></script>`, Policy{CustomCode: true})
 	if got != `<script></script>` {
 		t.Errorf("javascript: src kept: %s", got)
@@ -141,6 +153,9 @@ func TestSanitizeCSS(t *testing.T) {
 		{"closing style escaped", `.a{content:"</style><script>x</script>"}`, `.a{content:"<\/style><script>x<\/script>"}`},
 		{"import dropped", `@import url("https://evil.example/x.css");.a{}`, `.a{}`},
 		{"font import kept", `@import url('https://fonts.googleapis.com/css2?family=Inter');.a{}`, `@import url('https://fonts.googleapis.com/css2?family=Inter');.a{}`},
+		{"fontshare and fontsource kept", `@import url("https://api.fontshare.com/v2/css?f[]=satoshi@400&display=swap");@import url("https://cdn.jsdelivr.net/npm/@fontsource/lora@5/400.css");`,
+			`@import url("https://api.fontshare.com/v2/css?f[]=satoshi@400&display=swap");@import url("https://cdn.jsdelivr.net/npm/@fontsource/lora@5/400.css");`},
+		{"other jsdelivr dropped", `@import url("https://cdn.jsdelivr.net/npm/evil/x.css");.a{}`, `.a{}`},
 		{"expression removed", `.a{width:expression(alert(1))}`, `.a{width:x(alert(1))}`},
 		{"escaped expression removed", `.a{width:\65 xpression(alert(1))}`, `.a{width:x(alert(1))}`},
 		{"behavior removed", `.a{behavior:url(x.htc);-moz-binding:url(x.xml)}`, `.a{x-removed:url(x.htc);x-removed:url(x.xml)}`},

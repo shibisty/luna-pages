@@ -62,9 +62,12 @@ backend), and under `/internal/v1/apps/{app}/editor` for the dashboard's editor.
   only `http(s)`, `mailto`, `tel`, relative, and `data:image/…` (not SVG) for images; `<iframe>`
   only over https from YouTube, Vimeo, Google Maps, Spotify; `target="_blank"` links get
   `rel="noopener noreferrer"`; `data-*`, `aria-*`, `class`, `style` (cleaned) stay. The CSS loses
-  `expression()`, `behavior`, `javascript:` URLs, `@import` (except font hosts) and anything that
-  would close a `<style>`. Site settings widen it: `"custom_code": true` keeps scripts,
-  `"iframe_hosts": [...]` adds hosts.
+  `expression()`, `behavior`, `javascript:` URLs, `@import` (except the font hosts: Google Fonts,
+  Bunny Fonts, Typekit, Fontshare, Fontsource on jsDelivr) and anything that would close a
+  `<style>`. Site settings widen it: `"custom_code": true` keeps scripts and
+  `<link rel="stylesheet">` to https URLs (the editor's blueprint scripts and their libraries),
+  `"iframe_hosts": [...]` adds hosts. Without `custom_code`, a publish that had scripts or links
+  answers with a warning.
 - **Layouts** need `<page-slot></page-slot>` (grapesjs-pages' slot) or `<luna-slot></luna-slot>` (or an
   element with `data-page-slot` / `data-luna-slot`) where the page goes. **Templates** answer with warnings for fields without an element.
 - **Entries** publish their draft values, checked against the template's fields (required,

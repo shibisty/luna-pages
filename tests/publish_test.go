@@ -90,9 +90,10 @@ func TestPublishLayoutTemplatePage(t *testing.T) {
 
 	// The template: warnings for fields without an element.
 	c.PostJSON("/v1/editor/templates/"+templateID+"/publish", map[string]any{"html": strings.Replace(productHTML, `<span data-field="sale" class="badge">Sale</span>`, "", 1), "css": ".product{display:grid}"}).
-		AssertOK().AssertJSONCount("warnings", 1).AssertSee("The field sale has no element")
+		AssertOK().AssertJSONCount("warnings", 2).AssertSee("The field sale has no element", "does not allow custom code")
+	// (productHTML has a <script>, which this site does not allow.)
 	c.PostJSON("/v1/editor/templates/"+templateID+"/publish", map[string]any{"html": productHTML, "css": ".product{display:grid}"}).
-		AssertOK().AssertJSONPath("revision", 2).AssertJSONCount("warnings", 0)
+		AssertOK().AssertJSONPath("revision", 2).AssertJSONCount("warnings", 1)
 
 	// Required fields are checked on publish; the entry's draft values go live.
 	c.PutJSON("/v1/editor/pages/"+kettleID, map[string]any{"name": "Kettle", "values": map[string]any{"field.title": ""}}).AssertOK()
@@ -245,14 +246,18 @@ func TestRevisionsAndRestore(t *testing.T) {
 func TestSitePolicy(t *testing.T) {
 	w := newWorld(t)
 	c := w.as(w.writer)
-	page := `<iframe src="https://maps.example.com/embed"></iframe><iframe src="https://www.youtube.com/embed/x"></iframe><script>track()</script>`
+	page := `<iframe src="https://maps.example.com/embed"></iframe><iframe src="https://www.youtube.com/embed/x"></iframe><script>track()</script>` +
+		`<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/animate.css@4.1.1/animate.min.css" onload="x()">`
 	c.PutJSON("/v1/editor/pages/"+homeID, map[string]any{"name": "Home", "slug": "/"}).AssertCreated()
-	c.PostJSON("/v1/editor/pages/"+homeID+"/publish", map[string]any{"html": page}).AssertOK()
-	htmlHas(t, w.as(w.reader).GetJSON("/v1/render?slug=/").AssertOK(), []string{"youtube.com"}, "maps.example.com", "<script>")
+	c.PostJSON("/v1/editor/pages/"+homeID+"/publish", map[string]any{"html": page}).AssertOK().
+		AssertJSONPath("warnings.0", "Scripts and stylesheet links were left out: the site does not allow custom code (custom_code in the site's settings).")
+	htmlHas(t, w.as(w.reader).GetJSON("/v1/render?slug=/").AssertOK(), []string{"youtube.com"}, "maps.example.com", "<script>", "animate.css")
+	c.PostJSON("/v1/editor/pages/"+homeID+"/publish", map[string]any{"html": "<p>no code</p>"}).AssertOK().AssertJSONCount("warnings", 0)
 
 	c.PutJSON("/v1/editor/site", map[string]any{"settings": map[string]any{"custom_code": true, "iframe_hosts": []string{"maps.example.com"}}}).AssertOK()
-	c.PostJSON("/v1/editor/pages/"+homeID+"/publish", map[string]any{"html": page}).AssertOK()
-	htmlHas(t, w.as(w.reader).GetJSON("/v1/render?slug=/").AssertOK(), []string{"maps.example.com", "youtube.com", "<script>track()</script>"})
+	c.PostJSON("/v1/editor/pages/"+homeID+"/publish", map[string]any{"html": page}).AssertOK().AssertJSONCount("warnings", 0)
+	htmlHas(t, w.as(w.reader).GetJSON("/v1/render?slug=/").AssertOK(), []string{"maps.example.com", "youtube.com", "<script>track()</script>",
+		`<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/animate.css@4.1.1/animate.min.css"/>`}, "onload")
 }
 
 func TestInternalReadAndPublish(t *testing.T) {

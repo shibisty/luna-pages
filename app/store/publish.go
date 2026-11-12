@@ -162,6 +162,9 @@ func (s *Store) Publish(ctx context.Context, app string, k Kind, id string, in P
 				return err
 			}
 		}
+		if !entry && !p.CustomCode && render.HasCode(*in.HTML) {
+			out.Warnings = append(out.Warnings, "Scripts and stylesheet links were left out: the site does not allow custom code (custom_code in the site's settings).")
+		}
 		if !entry {
 			if out.Revision, err = addRevision(ctx, tx, app, k, id, htmlOut, cssOut, by); err != nil {
 				return err

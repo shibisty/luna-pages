@@ -21,7 +21,8 @@ type Policy struct {
 	// IframeHosts are the hosts an <iframe src> may point at (exact host
 	// names, https only). nil means DefaultIframeHosts.
 	IframeHosts []string
-	// CustomCode keeps <script> elements (the site's own decision, a site
+	// CustomCode keeps <script> elements and <link rel="stylesheet"> to
+	// https URLs (libraries' CSS) (the site's own decision, a site
 	// setting). Event handler attributes and javascript: URLs are removed
 	// either way.
 	CustomCode bool
@@ -197,6 +198,13 @@ func (p Policy) cleanNode(n *html.Node) []*html.Node {
 		n.Attr = p.scriptAttrs(n.Attr)
 		return []*html.Node{n}
 	}
+	if name == "link" && p.CustomCode {
+		if attrs, ok := stylesheetAttrs(n.Attr); ok {
+			n.Attr = attrs
+			return []*html.Node{n}
+		}
+		return nil
+	}
 	if droppedElements[name] {
 		return nil
 	}
@@ -287,6 +295,55 @@ func (p Policy) scriptAttrs(attrs []html.Attribute) []html.Attribute {
 		}
 	}
 	return out
+}
+
+// stylesheetAttrs keeps a <link rel="stylesheet" href="https://…">: its
+// href, media, integrity, crossorigin and referrerpolicy.
+func stylesheetAttrs(attrs []html.Attribute) ([]html.Attribute, bool) {
+	var out []html.Attribute
+	sheet, href := false, false
+	for _, a := range attrs {
+		key := strings.ToLower(a.Key)
+		switch key {
+		case "rel":
+			for _, r := range strings.Fields(strings.ToLower(a.Val)) {
+				sheet = sheet || r == "stylesheet"
+			}
+			out = append(out, html.Attribute{Key: "rel", Val: "stylesheet"})
+		case "href":
+			u, err := url.Parse(strings.TrimSpace(a.Val))
+			if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil {
+				return nil, false
+			}
+			href = true
+			out = append(out, html.Attribute{Key: "href", Val: u.String()})
+		case "media", "integrity", "crossorigin", "referrerpolicy":
+			out = append(out, html.Attribute{Key: key, Val: a.Val})
+		}
+	}
+	return out, sheet && href
+}
+
+// HasCode reports whether HTML has a <script> or a <link> element, which
+// only a site that allows custom code keeps.
+func HasCode(src string) bool {
+	nodes, err := ParseFragment(src)
+	if err != nil {
+		return false
+	}
+	var walk func([]*html.Node) bool
+	walk = func(ns []*html.Node) bool {
+		for _, n := range ns {
+			if n.Type == html.ElementNode && (strings.EqualFold(n.Data, "script") || strings.EqualFold(n.Data, "link")) {
+				return true
+			}
+			if walk(children(n)) {
+				return true
+			}
+		}
+		return false
+	}
+	return walk(nodes)
 }
 
 func (p Policy) iframeAllowed(src string) bool {
