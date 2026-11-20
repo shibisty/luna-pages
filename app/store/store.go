@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"fullstack"
+	"fullstack/env"
 	"orm"
 )
 
@@ -125,15 +126,67 @@ type Input struct {
 }
 
 // Store is in the container (Provider).
-type Store struct{ app *fullstack.App }
+type Store struct {
+	app *fullstack.App
+	// FormsURL is luna-forms' public address (PAGES_FORMS_URL): forms of
+	// grapesjs-forms are kept on published pages and post there. Empty:
+	// forms are left out.
+	FormsURL string
+	// ThemeSrc is darkreader.js for the theme of grapesjs-darkreader
+	// (PAGES_DARKREADER_SRC); the pages load it only when a visitor's
+	// theme is the generated one.
+	ThemeSrc string
+}
+
+// DefaultThemeSrc is the Dark Reader grapesjs-darkreader is made for.
+const DefaultThemeSrc = "https://cdn.jsdelivr.net/npm/darkreader@4.9.135/darkreader.min.js"
+
+// Config is the store's configuration.
+type Config struct {
+	FormsURL string `env:"PAGES_FORMS_URL"`
+	ThemeSrc string `env:"PAGES_DARKREADER_SRC"`
+}
 
 // Provider registers *store.Store.
 type Provider struct{}
 
 // Register implements fullstack.Provider.
 func (Provider) Register(app *fullstack.App) error {
-	fullstack.Provide(app, func(app *fullstack.App) (*Store, error) { return &Store{app: app}, nil })
+	var cfg Config
+	if err := env.Decode(&cfg); err != nil {
+		return fmt.Errorf("store: %w", err)
+	}
+	fullstack.Provide(app, func(app *fullstack.App) (*Store, error) {
+		src := cfg.ThemeSrc
+		if src == "" {
+			src = DefaultThemeSrc
+		}
+		return &Store{app: app, FormsURL: strings.TrimRight(cfg.FormsURL, "/"), ThemeSrc: src}, nil
+	})
 	return nil
+}
+
+// FormsAction is where an application's forms post, up to the form's id
+// ("" without luna-forms).
+func (s *Store) FormsAction(app string) string {
+	if s.FormsURL == "" {
+		return ""
+	}
+	return s.FormsURL + "/submit/" + app + "/forms/"
+}
+
+// ThemeRuntime is the address of this service's theme script (pages with
+// grapesjs-darkreader's settings load it).
+func (s *Store) ThemeRuntime() string {
+	return strings.TrimRight(s.app.Config.URL, "/") + "/runtime/theme.js"
+}
+
+// FormsRuntime is luna-forms' site script ("" without luna-forms).
+func (s *Store) FormsRuntime() string {
+	if s.FormsURL == "" {
+		return ""
+	}
+	return s.FormsURL + "/runtime.js"
 }
 
 func (s *Store) db() (orm.SQLExecutor, error) { return fullstack.Make[orm.SQLExecutor](s.app) }

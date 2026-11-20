@@ -904,7 +904,8 @@ components:
         meta: { $ref: "#/components/schemas/Values", description: The client's own values. }
         version: { type: string, description: The ETag without quotes. }
         draft: { type: boolean }
-      required: [id, slug, title, kind, html, css, seo, meta, version]
+        scripts: { type: array, items: { type: string, format: uri }, description: "Scripts the page needs — luna-forms' script when it has a form, this service's `/runtime/theme.js` when it has grapesjs-darkreader's settings. The HTML ends with them as `<script src defer>`; a site that inserts the HTML with innerHTML loads them itself." }
+      required: [id, slug, title, kind, html, css, seo, meta, version, scripts]
 
     PageSummary:
       type: object

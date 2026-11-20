@@ -68,6 +68,18 @@ backend), and under `/internal/v1/apps/{app}/editor` for the dashboard's editor.
   `<link rel="stylesheet">` to https URLs (the editor's blueprint scripts and their libraries),
   `"iframe_hosts": [...]` adds hosts. Without `custom_code`, a publish that had scripts or links
   answers with a warning.
+- **Forms** of grapesjs-forms (`<form data-gjsf-form="<id>">`) are kept with their inputs when
+  `PAGES_FORMS_URL` (luna-forms' public address) is set: the form's `action` always becomes
+  `<PAGES_FORMS_URL>/submit/<app>/forms/<id>/submissions` and `method` post, whatever the editor
+  wrote; `formaction`, `on*` and `input type=image|submit|reset` go. Any other form is unwrapped as
+  before. `/v1/render` lists luna-forms' script in `scripts` (and ends the HTML with it) when the
+  page has such a form.
+- **The theme** of grapesjs-darkreader: the editor (luna-studio's) publishes its settings as data,
+  `<script type="application/json" data-luna-darkreader>{…}</script>`, which is kept without custom
+  code (valid JSON only, written back compact, without `src`). Such a page gets `/runtime/theme.js`
+  of this service in `scripts`: the plugin's own runtime (`app/render/runtime`, see `VERSION`)
+  started with those settings, so the toggles (`[data-gjs-theme-toggle]`) and the visitor's choice
+  work; Dark Reader comes from `PAGES_DARKREADER_SRC` (jsDelivr by default), never from the page.
 - **Layouts** need `<page-slot></page-slot>` (grapesjs-pages' slot) or `<luna-slot></luna-slot>` (or an
   element with `data-page-slot` / `data-luna-slot`) where the page goes. **Templates** answer with warnings for fields without an element.
 - **Entries** publish their draft values, checked against the template's fields (required,

@@ -40,6 +40,7 @@ func env(t *testing.T, dashboardURL string, extra map[string]string) {
 		"APP_NAME": "luna-pages", "APP_ENV": "testing",
 		"DB_DRIVER": "postgres", "DATABASE_DSN": "postgres://unused@127.0.0.1:1/none", "DB_PING": "false", "DB_MIGRATE": "false",
 		"LUNA_DASHBOARD_URL": dashboardURL, "LUNA_DASHBOARD_TOKEN": serviceToken,
+		"PAGES_FORMS_URL": "https://forms.test/", "APP_URL": "http://pages.test", "PAGES_DARKREADER_SRC": "https://cdn.test/darkreader.js",
 	}
 	for k, v := range extra {
 		vars[k] = v

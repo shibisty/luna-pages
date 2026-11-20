@@ -18,6 +18,9 @@ func API(app *fullstack.App, v keys.Verifier, serviceToken string) {
 	app.Router.Get("/healthz", func(c *web.Ctx) error {
 		return c.JSON(200, map[string]string{"status": "ok", "app": app.Config.Name})
 	}).Name("healthz")
+	// The theme of grapesjs-darkreader on published pages (public: the
+	// sites load it; Rendered.scripts names it).
+	app.Router.Get("/runtime/theme.js", controllers.NewAPI(app).ThemeScript).Name("runtime.theme")
 
 	ui := env.Bool("API_DOCS", false)
 	docs.Register(app.Router, docs.OpenAPI, "docs", "/openapi.yaml", "/docs", "Luna Pages API", ui)

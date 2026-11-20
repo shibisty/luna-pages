@@ -40,6 +40,23 @@ tags:
     description: "grapesjs-storage's REST contract (its openapi.yaml): templates as their fields, entries with values by field name (pages:write)."
 
 paths:
+  /runtime/theme.js:
+    get:
+      tags: [service]
+      summary: The theme script of published pages
+      operationId: themeScript
+      description: |
+        grapesjs-darkreader's runtime for pages whose HTML has its settings
+        (`<script type="application/json" data-luna-darkreader>`): a generated
+        dark or light theme, the toggles, the visitor's choice. `Rendered.scripts`
+        names it for such pages. Dark Reader is loaded from `PAGES_DARKREADER_SRC`.
+      security: []
+      responses:
+        "200":
+          description: The script.
+          content:
+            text/javascript:
+              schema: { type: string }
   /healthz:
     get:
       tags: [service]
@@ -1008,7 +1025,8 @@ components:
         meta: { $ref: "#/components/schemas/Values", description: The client's own values. }
         version: { type: string, description: The ETag without quotes. }
         draft: { type: boolean }
-      required: [id, slug, title, kind, html, css, seo, meta, version]
+        scripts: { type: array, items: { type: string, format: uri }, description: "Scripts the page needs — luna-forms' script when it has a form, this service's `/runtime/theme.js` when it has grapesjs-darkreader's settings. The HTML ends with them as `<script src defer>`; a site that inserts the HTML with innerHTML loads them itself." }
+      required: [id, slug, title, kind, html, css, seo, meta, version, scripts]
 
     PageSummary:
       type: object

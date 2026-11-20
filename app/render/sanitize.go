@@ -26,6 +26,15 @@ type Policy struct {
 	// setting). Event handler attributes and javascript: URLs are removed
 	// either way.
 	CustomCode bool
+	// Forms is where grapesjs-forms' forms post: luna-forms' address for
+	// the application, ending in "/forms/" (…/submit/<app>/forms/). Set, a
+	// <form data-gjsf-form="<id>"> is kept with its inputs and its action
+	// becomes Forms + id + "/submissions" whatever the editor wrote (a site
+	// made in luna-studio's folder posts to the right place too). Empty:
+	// forms are unwrapped and inputs dropped, as everywhere else.
+	Forms string
+
+	inForm bool // inside such a form: inputs, selects, textareas are kept
 }
 
 // DefaultIframeHosts: video players and maps.
@@ -87,6 +96,9 @@ func init() {
 	}
 }
 
+// Elements kept inside a grapesjs-forms form only (Policy.Forms).
+var formElements = set("form", "fieldset", "legend", "input", "select", "textarea", "option", "optgroup")
+
 // Elements dropped with everything inside them.
 var droppedElements = map[string]bool{
 	"script": true, "style": true, "noscript": true, "template": true, "object": true,
@@ -125,8 +137,18 @@ var elementAttrs = map[string]map[string]bool{
 	"blockquote": set("cite"),
 	"details":    set("open"),
 	"button":     set("type", "disabled", "name", "value"),
-	"label":      set("for"),
-	"svg":        set("viewbox", "width", "height", "fill", "stroke", "xmlns", "preserveaspectratio", "version"),
+	"form":       set("method", "action", "enctype", "novalidate", "autocomplete", "accept-charset"),
+	"fieldset":   set("disabled", "name"),
+	"input": set("type", "name", "value", "placeholder", "required", "readonly", "disabled", "checked",
+		"min", "max", "step", "minlength", "maxlength", "pattern", "accept", "autocomplete", "multiple",
+		"size", "inputmode", "enterkeyhint", "autocapitalize", "spellcheck"),
+	"textarea": set("name", "rows", "cols", "placeholder", "required", "readonly", "disabled", "minlength",
+		"maxlength", "autocomplete", "wrap", "inputmode", "spellcheck"),
+	"select":   set("name", "multiple", "required", "disabled", "autocomplete", "size"),
+	"option":   set("value", "selected", "disabled", "label"),
+	"optgroup": set("label", "disabled"),
+	"label":    set("for"),
+	"svg":      set("viewbox", "width", "height", "fill", "stroke", "xmlns", "preserveaspectratio", "version"),
 }
 
 // SVG presentation attributes, on every SVG element.
@@ -194,6 +216,12 @@ func (p Policy) cleanNode(n *html.Node) []*html.Node {
 		return nil
 	}
 	name := strings.ToLower(n.Data)
+	if name == "script" && hasAttr(n, ThemeAttr) {
+		if t, ok := themeNode(n); ok {
+			return []*html.Node{t}
+		}
+		return nil
+	}
 	if name == "script" && p.CustomCode {
 		n.Attr = p.scriptAttrs(n.Attr)
 		return []*html.Node{n}
@@ -204,6 +232,24 @@ func (p Policy) cleanNode(n *html.Node) []*html.Node {
 			return []*html.Node{n}
 		}
 		return nil
+	}
+	if name == "form" && p.Forms != "" && !p.inForm {
+		if id := attr(n, "data-gjsf-form"); formIDRe.MatchString(id) {
+			q := p
+			q.inForm = true
+			setChildren(n, q.clean(children(n)))
+			n.Attr = q.formAttrs(id, q.cleanAttrs(name, false, n.Attr))
+			return []*html.Node{n}
+		}
+	}
+	if formElements[name] && p.inForm && name != "form" {
+		kids := p.clean(children(n))
+		n.Attr = p.cleanAttrs(name, false, n.Attr)
+		if name == "input" && !inputTypes[strings.ToLower(attrValue(n.Attr, "type"))] {
+			return nil
+		}
+		setChildren(n, kids)
+		return []*html.Node{n}
 	}
 	if droppedElements[name] {
 		return nil
@@ -278,6 +324,24 @@ func (p Policy) cleanAttrs(el string, svg bool, attrs []html.Attribute) []html.A
 
 var dataAttrRe = regexp.MustCompile(`^data-[a-z0-9_.:-]+$`)
 
+// formIDRe: a grapesjs-forms form id (luna-forms' rule).
+var formIDRe = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
+
+// Input types kept in a form ("" is text). No image (a URL that posts)
+// and no submit/reset (forms have a <button>).
+var inputTypes = set("", "text", "email", "tel", "url", "number", "password", "date", "time", "datetime-local",
+	"month", "week", "range", "color", "file", "hidden", "checkbox", "radio", "search")
+
+// formAttrs fixes a kept form's own attributes: it posts to luna-forms.
+func (p Policy) formAttrs(id string, attrs []html.Attribute) []html.Attribute {
+	attrs = setAttr(attrs, "action", p.Forms+id+"/submissions")
+	attrs = setAttr(attrs, "method", "post")
+	if e := attrValue(attrs, "enctype"); e != "" && e != "multipart/form-data" {
+		attrs = removeAttr(attrs, "enctype")
+	}
+	return attrs
+}
+
 func validDataAttr(key string) bool { return dataAttrRe.MatchString(key) }
 
 func (p Policy) scriptAttrs(attrs []html.Attribute) []html.Attribute {
@@ -335,7 +399,10 @@ func HasCode(src string) bool {
 	walk = func(ns []*html.Node) bool {
 		for _, n := range ns {
 			if n.Type == html.ElementNode && (strings.EqualFold(n.Data, "script") || strings.EqualFold(n.Data, "link")) {
-				return true
+				// The theme's settings are data, kept without custom code.
+				if !(strings.EqualFold(n.Data, "script") && hasAttr(n, ThemeAttr)) {
+					return true
+				}
 			}
 			if walk(children(n)) {
 				return true

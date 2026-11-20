@@ -69,7 +69,9 @@ func (s *Store) policy(ctx context.Context, db orm.SQLExecutor, app string) (ren
 	if err != nil {
 		return render.Policy{}, err
 	}
-	return SitePolicy(site.Settings), nil
+	p := SitePolicy(site.Settings)
+	p.Forms = s.FormsAction(app)
+	return p, nil
 }
 
 // clean sanitizes what the editor sent.

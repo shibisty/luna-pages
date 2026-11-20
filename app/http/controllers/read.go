@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"encoding/json"
+	"html"
 	"net/http"
 	"strconv"
 	"strings"
@@ -32,6 +33,10 @@ type Rendered struct {
 	Meta        map[string]json.RawMessage `json:"meta"`
 	Version     string                     `json:"version"`
 	Draft       bool                       `json:"draft,omitempty"`
+	// Scripts the page needs (luna-forms' script when it has a form); the
+	// HTML ends with them too, for sites that write it out on the server.
+	// A site that puts the HTML in with innerHTML loads these itself.
+	Scripts []string `json:"scripts"`
 }
 
 // cache keeps rendered pages by their tag, which changes with anything
@@ -138,7 +143,7 @@ func (h API) Render(c *web.Ctx) error {
 	if r, ok := h.cache.get(a, v.Tag); ok && !isDraft {
 		return c.JSON(http.StatusOK, r)
 	}
-	r, err := renderView(v)
+	r, err := renderView(v, runtimes{Forms: st.FormsRuntime(), Theme: st.ThemeRuntime()})
 	if err != nil {
 		return err
 	}
@@ -149,7 +154,17 @@ func (h API) Render(c *web.Ctx) error {
 	return c.JSON(http.StatusOK, r)
 }
 
-func renderView(v store.View) (Rendered, error) {
+// formMark finds a grapesjs-forms form kept by the sanitizer; themeMark
+// grapesjs-darkreader's settings.
+const (
+	formMark  = "data-gjsf-form="
+	themeMark = render.ThemeAttr
+)
+
+// runtimes are the site scripts a page may need ("" none).
+type runtimes struct{ Forms, Theme string }
+
+func renderView(v store.View, rt runtimes) (Rendered, error) {
 	body := v.Body
 	if v.Entry {
 		var err error
@@ -168,10 +183,21 @@ func renderView(v store.View) (Rendered, error) {
 			css = append(css, s)
 		}
 	}
+	scripts := []string{}
+	if rt.Forms != "" && strings.Contains(page, formMark) {
+		scripts = append(scripts, rt.Forms)
+	}
+	if rt.Theme != "" && strings.Contains(page, "<script type=\"application/json\" "+themeMark) {
+		scripts = append(scripts, rt.Theme)
+	}
+	for _, src := range scripts {
+		page += `<script src="` + html.EscapeString(src) + `" defer></script>`
+	}
 	_, seo, meta := store.Split(v.Values)
 	return Rendered{
 		ID: v.Page.ID, Slug: v.Page.Slug, Title: v.Page.Name, Kind: v.Page.PageKind, TemplateID: v.Page.TemplateID,
 		PublishedAt: v.PublishedAt, HTML: page, CSS: strings.Join(css, "\n"), SEO: seo, Meta: meta, Version: v.Tag,
+		Scripts: scripts,
 	}, nil
 }
 
@@ -243,4 +269,20 @@ func intParam(s string, def, lo, hi int, name string) (int, error) {
 		return 0, invalid(name, "Must be a whole number from "+strconv.Itoa(lo)+" to "+strconv.Itoa(hi)+".")
 	}
 	return n, nil
+}
+
+// ThemeScript is GET /runtime/theme.js: grapesjs-darkreader's runtime,
+// started with the page's settings (render.ThemeRuntime).
+func (h API) ThemeScript(c *web.Ctx) error {
+	st, err := h.store()
+	if err != nil {
+		return err
+	}
+	hd := c.W.Header()
+	hd.Set("Content-Type", "text/javascript; charset=utf-8")
+	hd.Set("Cache-Control", "public, max-age=3600")
+	hd.Set("Access-Control-Allow-Origin", "*")
+	hd.Set("X-Content-Type-Options", "nosniff")
+	_, err = c.W.Write([]byte(render.ThemeRuntime(st.ThemeSrc)))
+	return err
 }
