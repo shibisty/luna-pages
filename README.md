@@ -118,18 +118,36 @@ backend), and under `/internal/v1/apps/{app}/editor` for the dashboard's editor.
 
 ## The content API
 
-grapesjs-storage's REST contract (`RestContentStore`), under `/v1/content` with `pages:write`
-and under `/internal/v1/apps/{app}/content`. It is a view of the same records: templates and
-entries are the editor API's templates and pages.
+grapesjs-storage 1.x's REST contract (`RestContentStore`, its openapi.yaml), under
+`/v1/content` with `pages:write` and under `/internal/v1/apps/{app}/content`. Its own tables
+(`data_templates`, `data_entries`, `sites.languages`), apart from the editor API's records:
+
+- a **template** is a group of fields (`fields` as the editor sends them: ~25 types, groups,
+  repeaters, `translatable`), with sample `data`;
+- an **entry** is the data of a page (its id is the page's; the page names its template in its
+  values, `storage.template`) or a standalone entry; draft and published values; a translatable
+  field's value is an object by language code (`{"uk-ua": …, "en-gb": …}`);
+- a **data record** is a page with `data_of` (editor API): it takes the design of that page and
+  has its own data; deleting the page deletes its data records and the data of both;
+- the site's **languages**: `{default, enabled}`.
 
 | Request | |
 |---|---|
-| `GET /v1/content/templates`, `GET /v1/content/templates/{id}` | templates with their `fields` (and `data` for one) |
-| `PUT /v1/content/templates/{id}` | saves `name`, `fields` and the project; does not bump the version, so grapesjs-pages gets no `412` |
-| `GET /v1/content/entries?template=`, `GET /v1/content/entries/{id}` | entries with plain keys in `values` (`title`, not `field.title`) |
-| `PUT /v1/content/entries/{id}` | `{template_id, name, slug?, values}` creates or replaces |
-| `DELETE /v1/content/entries/{id}` | 204 |
-| `POST /v1/content/entries/{id}/publish` | the same check and revision as the editor API's publish |
+| `GET /v1/content/templates`, `GET /v1/content/templates/{id}` | templates (and `data` for one) |
+| `PUT /v1/content/templates/{id}`, `DELETE …` | `{name?, fields, data?}`; a delete leaves the entries |
+| `GET /v1/content/entries?template=`, `GET /v1/content/entries/{id}` | entries (values for one) |
+| `PUT /v1/content/entries/{id}` | `{template_id, name?, slug?, values}`: values merge, `null` deletes a key; `If-Match` |
+| `DELETE /v1/content/entries/{id}`, `POST …/publish` | `If-Match`; publish makes the draft values the published ones |
+| `GET/PUT /v1/content/languages` | `404` until set |
+
+A published page carries its default language's values (the editor fills the
+`data-storage-field` elements); filling other languages on the server is still to come. The 0.x
+model (templates of the editor API with `fields`, pages with `template_id` and `field.<name>`
+values, filled by `app/render`) keeps working for what was made with it.
+
+**Linked components** (grapesjs-site-pages 2.10+, contract 2.1): `/v1/editor/components` are
+records like layouts (draft, publish, revisions). A page's published HTML already holds the
+copies as they were then.
 
 ## Documentation
 

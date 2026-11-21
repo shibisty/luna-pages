@@ -18,6 +18,8 @@ func table(k Kind) string {
 		return "layouts"
 	case Template:
 		return "templates"
+	case Component:
+		return "components"
 	}
 	return "pages"
 }
@@ -26,12 +28,12 @@ func table(k Kind) string {
 func columns(k Kind) string {
 	common := "id, version, created_at, updated_at"
 	switch k {
-	case Layout:
+	case Layout, Component:
 		return common + ", name"
 	case Template:
 		return common + ", name, fields"
 	}
-	return common + ", title, slug, kind, status, layout_id, template_id, parent_id, position, published_at"
+	return common + ", title, slug, kind, status, layout_id, template_id, parent_id, position, published_at, data_of"
 }
 
 type scanner interface{ Scan(...any) error }
@@ -41,7 +43,7 @@ func scanRecord(k Kind, row scanner) (Record, error) {
 	common := []any{&r.ID, &r.Version, &r.CreatedAt, &r.UpdatedAt}
 	var err error
 	switch k {
-	case Layout:
+	case Layout, Component:
 		err = row.Scan(append(common, &r.Name)...)
 	case Template:
 		var fields []byte
@@ -50,10 +52,10 @@ func scanRecord(k Kind, row scanner) (Record, error) {
 			err = json.Unmarshal(fields, &r.Fields)
 		}
 	default:
-		var layout, template, parent sql.NullString
+		var layout, template, parent, dataOf sql.NullString
 		var published sql.NullTime
-		err = row.Scan(append(common, &r.Name, &r.Slug, &r.PageKind, &r.Status, &layout, &template, &parent, &r.Position, &published)...)
-		r.LayoutID, r.TemplateID, r.ParentID = nullable(layout), nullable(template), nullable(parent)
+		err = row.Scan(append(common, &r.Name, &r.Slug, &r.PageKind, &r.Status, &layout, &template, &parent, &r.Position, &published, &dataOf)...)
+		r.LayoutID, r.TemplateID, r.ParentID, r.DataOf = nullable(layout), nullable(template), nullable(parent), nullable(dataOf)
 		if published.Valid {
 			t := published.Time.UTC()
 			r.PublishedAt = &t
@@ -201,8 +203,14 @@ func (s *Store) Put(ctx context.Context, app string, k Kind, id string, in Input
 	if err := checkProject(in.Data); err != nil {
 		return Record{}, false, err
 	}
-	var layout, template, parent *string
+	var layout, template, parent, dataOf *string
 	if k == Page {
+		if dataOf, err = optionalID("data_of", in.DataOf); err != nil {
+			return Record{}, false, err
+		}
+		if dataOf != nil && *dataOf == id {
+			return Record{}, false, invalid("data_of", "A page cannot be a data record of itself.")
+		}
 		if layout, err = optionalID("layout_id", in.LayoutID); err != nil {
 			return Record{}, false, err
 		}
@@ -248,6 +256,10 @@ func (s *Store) Put(ctx context.Context, app string, k Kind, id string, in Input
 			err = upsert(ctx, tx, `INSERT INTO layouts (app_id, id, name) VALUES ($1, $2, $3)
 				ON CONFLICT (app_id, id) DO UPDATE SET name = EXCLUDED.name, version = layouts.version + 1, updated_at = now() AT TIME ZONE 'UTC'`,
 				app, id, name)
+		case Component:
+			err = upsert(ctx, tx, `INSERT INTO components (app_id, id, name) VALUES ($1, $2, $3)
+				ON CONFLICT (app_id, id) DO UPDATE SET name = EXCLUDED.name, version = components.version + 1, updated_at = now() AT TIME ZONE 'UTC'`,
+				app, id, name)
 		case Template:
 			// Omitted fields stay (grapesjs-pages saves a template's design
 			// without knowing its fields); [] clears them.
@@ -260,7 +272,7 @@ func (s *Store) Put(ctx context.Context, app string, k Kind, id string, in Input
 				ON CONFLICT (app_id, id) DO UPDATE SET name = EXCLUDED.name, fields = EXCLUDED.fields, version = templates.version + 1, updated_at = now() AT TIME ZONE 'UTC'`,
 				app, id, name, string(fields))
 		default:
-			err = s.putPage(ctx, tx, app, id, name, in, cur, created, layout, template, parent)
+			err = s.putPage(ctx, tx, app, id, name, in, cur, created, layout, template, parent, dataOf)
 		}
 		if err != nil {
 			return err
@@ -288,7 +300,7 @@ func nonNil(f []Field) []Field {
 	return f
 }
 
-func (s *Store) putPage(ctx context.Context, tx orm.SQLExecutor, app, id, title string, in Input, cur Record, created bool, layout, template, parent *string) error {
+func (s *Store) putPage(ctx context.Context, tx orm.SQLExecutor, app, id, title string, in Input, cur Record, created bool, layout, template, parent, dataOf *string) error {
 	// Slug: given, kept, or made from the title (unique within the app).
 	var slug string
 	switch {
@@ -314,6 +326,9 @@ func (s *Store) putPage(ctx context.Context, tx orm.SQLExecutor, app, id, title 
 	if !created && in.ParentID == nil {
 		parent = cur.ParentID
 	}
+	if !created && in.DataOf == nil {
+		dataOf = cur.DataOf
+	}
 	position := cur.Position
 	if in.Position != nil {
 		position = *in.Position
@@ -322,12 +337,16 @@ func (s *Store) putPage(ctx context.Context, tx orm.SQLExecutor, app, id, title 
 	if template != nil {
 		kind = "entry"
 	}
-	for ref, want := range map[*string]Kind{layout: Layout, template: Template, parent: Page} {
-		if ref == nil {
+	for _, ref := range []struct {
+		id    *string
+		kind  Kind
+		field string
+	}{{layout, Layout, "layout_id"}, {template, Template, "template_id"}, {parent, Page, "parent_id"}, {dataOf, Page, "data_of"}} {
+		if ref.id == nil {
 			continue
 		}
-		if _, err := get(ctx, tx, app, want, *ref); errors.Is(err, ErrNotFound) {
-			return invalid(string(want)+"_id", "No such %s.", want)
+		if _, err := get(ctx, tx, app, ref.kind, *ref.id); errors.Is(err, ErrNotFound) {
+			return invalid(ref.field, "No such %s.", ref.kind)
 		} else if err != nil {
 			return err
 		}
@@ -343,12 +362,12 @@ func (s *Store) putPage(ctx context.Context, tx orm.SQLExecutor, app, id, title 
 	if taken {
 		return invalid("slug", "Another page already has the slug %s.", slug)
 	}
-	err = upsert(ctx, tx, `INSERT INTO pages (app_id, id, title, slug, kind, layout_id, template_id, parent_id, position)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	err = upsert(ctx, tx, `INSERT INTO pages (app_id, id, title, slug, kind, layout_id, template_id, parent_id, position, data_of)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		ON CONFLICT (app_id, id) DO UPDATE SET title = EXCLUDED.title, slug = EXCLUDED.slug, kind = EXCLUDED.kind,
 			layout_id = EXCLUDED.layout_id, template_id = EXCLUDED.template_id, parent_id = EXCLUDED.parent_id,
-			position = EXCLUDED.position, version = pages.version + 1, updated_at = now() AT TIME ZONE 'UTC'`,
-		app, id, title, slug, kind, layout, template, parent, position)
+			position = EXCLUDED.position, data_of = EXCLUDED.data_of, version = pages.version + 1, updated_at = now() AT TIME ZONE 'UTC'`,
+		app, id, title, slug, kind, layout, template, parent, position, dataOf)
 	if isUnique(err, "slug") {
 		return invalid("slug", "Another page already has the slug %s.", slug)
 	}
@@ -493,10 +512,31 @@ func (s *Store) Delete(ctx context.Context, app string, k Kind, id string, ifMat
 				return ErrInUse
 			}
 		}
+		owners := []string{id}
+		if k == Page {
+			// Its data records (grapesjs-storage) go with it (ON DELETE
+			// CASCADE); their designs and data, and the page's own data, too.
+			rows, err := tx.QueryContext(ctx, `SELECT id FROM pages WHERE app_id = $1 AND data_of = $2`, app, id)
+			if err != nil {
+				return err
+			}
+			for rows.Next() {
+				var d string
+				if err := rows.Scan(&d); err != nil {
+					rows.Close()
+					return err
+				}
+				owners = append(owners, d)
+			}
+			rows.Close()
+			if _, err := tx.ExecContext(ctx, `DELETE FROM data_entries WHERE app_id = $1 AND id = ANY($2)`, app, owners); err != nil {
+				return err
+			}
+		}
 		if _, err := tx.ExecContext(ctx, `DELETE FROM `+table(k)+` WHERE app_id = $1 AND id = $2`, app, id); err != nil {
 			return err
 		}
-		_, err = tx.ExecContext(ctx, `DELETE FROM content WHERE app_id = $1 AND owner_kind = $2 AND owner_id = $3`, app, string(k), id)
+		_, err = tx.ExecContext(ctx, `DELETE FROM content WHERE app_id = $1 AND owner_kind = $2 AND owner_id = ANY($3)`, app, string(k), owners)
 		return err
 	})
 }

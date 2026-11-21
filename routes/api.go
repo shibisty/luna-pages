@@ -91,9 +91,12 @@ func content(r *web.Router, api controllers.API, guard web.Middleware) {
 	r.Get("/content/templates", api.ContentTemplates, mw...)
 	r.Get("/content/templates/{id}", api.ContentTemplate, mw...)
 	r.Put("/content/templates/{id}", api.PutContentTemplate, mw...)
+	r.Delete("/content/templates/{id}", api.DeleteContentTemplate, mw...)
 	r.Get("/content/entries", api.ContentEntries, mw...)
 	r.Get("/content/entries/{id}", api.ContentEntry, mw...)
 	r.Put("/content/entries/{id}", api.PutContentEntry, mw...)
 	r.Delete("/content/entries/{id}", api.DeleteContentEntry, mw...)
 	r.Post("/content/entries/{id}/publish", api.PublishContentEntry, mw...)
+	r.Get("/content/languages", api.ContentLanguages, mw...)
+	r.Put("/content/languages", api.PutContentLanguages, mw...)
 }

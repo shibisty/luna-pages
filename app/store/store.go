@@ -32,6 +32,9 @@ const (
 	Template Kind = "template"
 	Page     Kind = "page"
 	Site     Kind = "site"
+	// Component is a linked component of grapesjs-site-pages (contract
+	// 2.1): a record like a layout; pages hold copies of it.
+	Component Kind = "component"
 )
 
 // KindOf maps an API path segment (layouts, templates, pages) to its kind.
@@ -43,6 +46,8 @@ func KindOf(segment string) (Kind, bool) {
 		return Template, true
 	case "pages":
 		return Page, true
+	case "components":
+		return Component, true
 	}
 	return "", false
 }
@@ -94,7 +99,9 @@ type Record struct {
 	LayoutID   *string `json:"layout_id,omitempty"`
 	TemplateID *string `json:"template_id,omitempty"`
 	ParentID   *string `json:"parent_id,omitempty"`
-	Position   int     `json:"position,omitempty"`
+	// A data record of grapesjs-storage: the page whose design it takes.
+	DataOf   *string `json:"data_of,omitempty"`
+	Position int     `json:"position,omitempty"`
 	// When the page was last published (null while it is a draft).
 	PublishedAt *time.Time `json:"published_at,omitempty"`
 
@@ -118,6 +125,7 @@ type Input struct {
 	LayoutID   *string                    `json:"layout_id"`
 	TemplateID *string                    `json:"template_id"`
 	ParentID   *string                    `json:"parent_id"`
+	DataOf     *string                    `json:"data_of"`
 	Position   *int                       `json:"position"`
 	Values     map[string]json.RawMessage `json:"values"`
 

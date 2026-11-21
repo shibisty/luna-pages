@@ -25,7 +25,7 @@ tags:
   - name: read
     description: Published content and draft previews.
   - name: content
-    description: "grapesjs-storage's REST contract (its openapi.yaml): templates as their fields, entries with values by field name (pages:write)."
+    description: "grapesjs-storage 1.x's REST contract (its openapi.yaml): templates as groups of fields, the data of every page and standalone entries, the site's languages (pages:write)."
 
 paths:
   /internal/v1/apps/{app}/editor/site:
@@ -464,6 +464,21 @@ paths:
           $ref: '#/components/responses/Invalid'
         '401':
           $ref: '#/components/responses/Unauthorized'
+    delete:
+      tags:
+      - content
+      summary: Delete a template
+      operationId: contentDeleteTemplate
+      description: Its entries stay (the editor shows them without a template).
+      responses:
+        '204':
+          description: Deleted.
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    parameters:
+    - $ref: '#/components/parameters/AppID'
   /internal/v1/apps/{app}/content/entries:
     get:
       tags:
@@ -601,6 +616,50 @@ paths:
           $ref: '#/components/responses/Invalid'
         '401':
           $ref: '#/components/responses/Unauthorized'
+  /internal/v1/apps/{app}/content/languages:
+    get:
+      tags:
+      - content
+      summary: The site's languages
+      operationId: contentGetLanguages
+      description: '`404` while the site has none: fields are not translated.'
+      responses:
+        '200':
+          description: The languages.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContentLanguages'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    parameters:
+    - $ref: '#/components/parameters/AppID'
+    put:
+      tags:
+      - content
+      summary: Set the site's languages
+      operationId: contentPutLanguages
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContentLanguages'
+      responses:
+        '200':
+          description: Saved (the default first in `enabled`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContentLanguages'
+        '422':
+          $ref: '#/components/responses/Invalid'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    parameters:
+    - $ref: '#/components/parameters/AppID'
 components:
   parameters:
     AppID:
@@ -614,7 +673,7 @@ components:
       in: path
       required: true
       description: The kind of record.
-      schema: { type: string, enum: [layouts, templates, pages] }
+      schema: { type: string, enum: [layouts, templates, pages, components] }
     ID:
       name: id
       in: path
@@ -774,7 +833,7 @@ components:
       type: object
       description: A layout, template or page. Pages carry the page fields, templates `fields`.
       properties:
-        kind: { type: string, enum: [layout, template, page] }
+        kind: { type: string, enum: [layout, template, page, component] }
         id: { type: string, format: uuid }
         name: { type: string, description: The name; a page's title. }
         version: { type: integer, description: Changes on every write. }
@@ -786,6 +845,7 @@ components:
         layout_id: { type: string, format: uuid }
         template_id: { type: string, format: uuid }
         parent_id: { type: string, format: uuid }
+        data_of: { type: string, format: uuid, description: "A data record of grapesjs-storage 1.x: the page whose design it takes (deleted with it)." }
         position: { type: integer }
         published_at: { type: string, format: date-time, description: When the page was last published (pages only; absent while a draft). }
         fields:
@@ -817,6 +877,7 @@ components:
         layout_id: { type: [string, "null"], format: uuid }
         template_id: { type: [string, "null"], format: uuid, description: Makes the page an entry of the template. }
         parent_id: { type: [string, "null"], format: uuid }
+        data_of: { type: [string, "null"], format: uuid, description: "Makes the page a data record of that page (grapesjs-storage 1.x)." }
         position: { type: integer }
         values:
           type: object
@@ -961,8 +1022,10 @@ components:
           type: string
         fields:
           type: array
+          description: grapesjs-storage 1.x's fields, as the editor sends them (id, name, type, label, translatable, nested fields of groups and repeaters…).
           items:
-            $ref: '#/components/schemas/Field'
+            type: object
+            additionalProperties: true
         version:
           type:
           - string
@@ -983,7 +1046,7 @@ components:
             type:
             - object
             - 'null'
-            description: The GrapesJS project of the design.
+            description: The template's sample data, as the editor keeps it.
     ContentTemplateWrite:
       type: object
       properties:
@@ -991,8 +1054,10 @@ components:
           type: string
         fields:
           type: array
+          description: grapesjs-storage 1.x's fields, as the editor sends them (id, name, type, label, translatable, nested fields of groups and repeaters…).
           items:
-            $ref: '#/components/schemas/Field'
+            type: object
+            additionalProperties: true
         data:
           type:
           - object
@@ -1035,6 +1100,22 @@ components:
       - id
       - template_id
       - name
+    ContentLanguages:
+      type: object
+      properties:
+        default:
+          type: string
+          pattern: ^[a-z]{2,3}-[a-z0-9]{2,4}$
+          example: uk-ua
+        enabled:
+          type: array
+          description: Enabled languages in order, the default first.
+          items:
+            type: string
+            pattern: ^[a-z]{2,3}-[a-z0-9]{2,4}$
+      required:
+      - default
+      - enabled
     ContentEntryWrite:
       type: object
       properties:
