@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"orm"
+
+	"luna-pages/app/render"
 )
 
 // View is everything a page's rendering needs: its live design (a free
@@ -29,6 +31,9 @@ type View struct {
 	Values      map[string]json.RawMessage
 	Settings    json.RawMessage
 	Tag         string
+	// Storage: a data record (grapesjs-storage 1.x): Body is its owner
+	// page's design, filled with these values when rendered.
+	Storage *render.StorageData
 }
 
 // Summary is a published page as the read API lists it: its header and
@@ -97,7 +102,22 @@ func (s *Store) PageView(ctx context.Context, app, slugOrID string, draft bool) 
 	}
 	tag := []string{v.Page.ID, fmt.Sprint(publishedAt.Time.UnixNano())}
 	var bodyCSS string
-	if v.Page.TemplateID != nil {
+	layoutID := v.Page.LayoutID
+	if v.Page.DataOf != nil {
+		owner, err := s.recordView(ctx, db, app, &v, &tag, draft)
+		if err != nil {
+			return View{}, err
+		}
+		body, err := latest(ctx, db, app, Page, owner.ID)
+		if err != nil {
+			return View{}, err
+		}
+		v.Body, bodyCSS = body.HTML, body.CSS
+		tag = append(tag, fmt.Sprintf("o%d", body.Revision))
+		if layoutID == nil {
+			layoutID = owner.LayoutID
+		}
+	} else if v.Page.TemplateID != nil {
 		v.Entry = true
 		t, err := get(ctx, db, app, Template, *v.Page.TemplateID)
 		if err != nil {
@@ -125,8 +145,8 @@ func (s *Store) PageView(ctx context.Context, app, slugOrID string, draft bool) 
 	} else if !errors.Is(err, ErrNotFound) {
 		return View{}, err
 	}
-	if v.Page.LayoutID != nil {
-		if l, err := latest(ctx, db, app, Layout, *v.Page.LayoutID); err == nil {
+	if layoutID != nil {
+		if l, err := latest(ctx, db, app, Layout, *layoutID); err == nil {
 			v.Layout = l.HTML
 			v.CSS = append(v.CSS, l.CSS)
 			tag = append(tag, fmt.Sprintf("l%d", l.Revision))
@@ -415,4 +435,86 @@ func (s *Store) Site(ctx context.Context, app string) (PublicSite, error) {
 		return rows.Err()
 	})
 	return out, err
+}
+
+// recordView prepares a data record's view: its owner page (whose design
+// it shows; ErrNotFound while the owner is not live), the record's values
+// and the owner's (the rows the design was published with), the
+// template's fields and the site's default language. The tag follows all
+// of them.
+func (s *Store) recordView(ctx context.Context, db orm.SQLExecutor, app string, v *View, tag *[]string, draft bool) (Record, error) {
+	owner, err := get(ctx, db, app, Page, *v.Page.DataOf)
+	if err != nil {
+		return Record{}, err
+	}
+	if !draft && owner.Status != "published" {
+		return Record{}, ErrNotFound
+	}
+	pick := func(e DataEntry) map[string]json.RawMessage {
+		if !draft && e.PublishedAt != nil {
+			return e.Published
+		}
+		if draft {
+			return e.Values
+		}
+		return nil
+	}
+	d := &render.StorageData{}
+	template := ""
+	entry, err := getDataEntry(ctx, db, app, v.Page.ID, "")
+	switch {
+	case err == nil:
+		d.Values, template = pick(entry), entry.TemplateID
+		*tag = append(*tag, fmt.Sprintf("e%d.%d", entry.Version, timeOf(entry.PublishedAt)))
+	case !errors.Is(err, ErrNotFound):
+		return Record{}, err
+	}
+	own, err := getDataEntry(ctx, db, app, owner.ID, "")
+	switch {
+	case err == nil:
+		// the design holds the values it was published with
+		d.Owner = own.Published
+		if d.Owner == nil {
+			d.Owner = own.Values
+		}
+		if template == "" {
+			template = own.TemplateID
+		}
+		*tag = append(*tag, fmt.Sprintf("w%d.%d", own.Version, timeOf(own.PublishedAt)))
+	case !errors.Is(err, ErrNotFound):
+		return Record{}, err
+	}
+	if template != "" {
+		t, err := getDataTemplate(ctx, db, app, template, "")
+		switch {
+		case err == nil:
+			_ = json.Unmarshal(t.Fields, &d.Fields)
+			*tag = append(*tag, fmt.Sprintf("t%d", t.Version))
+		case !errors.Is(err, ErrNotFound):
+			return Record{}, err
+		}
+	}
+	if l, err := s.DataLanguages(ctx, app); err == nil {
+		d.Lang, d.Fallback = l.Default, l.Default
+		*tag = append(*tag, "l"+l.Default)
+	}
+	d.Pages = func(id string) (render.PageRef, bool) {
+		p, err := get(ctx, db, app, Page, id)
+		if err != nil || (!draft && p.Status != "published") {
+			return render.PageRef{}, false
+		}
+		return render.PageRef{Name: p.Name, Slug: p.Slug}, true
+	}
+	if d.Values == nil {
+		d.Values = map[string]json.RawMessage{}
+	}
+	v.Storage = d
+	return owner, nil
+}
+
+func timeOf(t *time.Time) int64 {
+	if t == nil {
+		return 0
+	}
+	return t.UnixNano()
 }

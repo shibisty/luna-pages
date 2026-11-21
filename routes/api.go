@@ -93,6 +93,7 @@ func content(r *web.Router, api controllers.API, guard web.Middleware) {
 	r.Put("/content/templates/{id}", api.PutContentTemplate, mw...)
 	r.Delete("/content/templates/{id}", api.DeleteContentTemplate, mw...)
 	r.Get("/content/entries", api.ContentEntries, mw...)
+	r.Get("/content/legacy-entries", api.LegacyEntries, mw...)
 	r.Get("/content/entries/{id}", api.ContentEntry, mw...)
 	r.Put("/content/entries/{id}", api.PutContentEntry, mw...)
 	r.Delete("/content/entries/{id}", api.DeleteContentEntry, mw...)

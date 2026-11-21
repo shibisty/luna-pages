@@ -485,12 +485,18 @@ paths:
       - content
       summary: List entries
       operationId: internalContentListEntries
-      description: Entries of a template (all without `template`); `values` may be left out.
+      description: Entries of a template (all without `template`), without values, or with the draft or published ones (`values`).
       parameters:
       - name: template
         in: query
         schema:
           type: string
+      - name: values
+        in: query
+        description: '`draft` or `published` (an entry never published: none).'
+        schema:
+          type: string
+          enum: [draft, published]
       responses:
         '200':
           description: The entries.
@@ -509,6 +515,46 @@ paths:
           $ref: '#/components/responses/Unauthorized'
     parameters:
     - $ref: '#/components/parameters/AppID'
+  /internal/v1/apps/{app}/content/legacy-entries:
+    parameters:
+    - $ref: '#/components/parameters/AppID'
+    get:
+      tags:
+      - content
+      summary: List entries of the old content model
+      operationId: internalContentLegacyEntries
+      description: The entries (pages of a template, values as `field.<name>`) of the content model before grapesjs-storage 1.x, with their draft values, for clients moving to data records. Read only and temporary.
+      parameters:
+      - name: template
+        in: query
+        required: true
+        description: The old template's name or id.
+        schema:
+          type: string
+      responses:
+        '200':
+          description: The entries.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: {type: string}
+                        name: {type: string}
+                        slug: {type: string}
+                        status: {type: string}
+                        version: {type: integer}
+                        published_at: {type: string, format: date-time, nullable: true}
+                        values: {type: object, additionalProperties: true}
+                required:
+                - items
+        '401':
+          $ref: '#/components/responses/Unauthorized'
   /internal/v1/apps/{app}/content/entries/{id}:
     parameters:
     - $ref: '#/components/parameters/AppID'

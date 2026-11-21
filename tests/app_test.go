@@ -94,6 +94,7 @@ func logOutput() io.Writer {
 // and the blog with a writer of its own.
 type world struct {
 	c                                       *apptest.Client
+	app                                     *fullstack.App
 	writer, reader, browser, blog, authOnly string
 }
 
@@ -113,7 +114,8 @@ func newWorld(t *testing.T) *world {
 		blh: {ID: "k4", AppID: blogID, Kind: keys.Server, Scopes: []keys.Scope{keys.PagesWrite}},
 		ah:  {ID: "k5", AppID: shopID, Kind: keys.Server, Scopes: []keys.Scope{keys.AuthLogin}},
 	})
-	w.c = apptest.New(t, newDBApp(t, url))
+	w.app = newDBApp(t, url)
+	w.c = apptest.New(t, w.app)
 	return w
 }
 

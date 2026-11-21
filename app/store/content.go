@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"time"
 
 	"orm"
 )
@@ -170,4 +171,59 @@ func (s *Store) PublishEntry(ctx context.Context, app, id string, ifMatch *int64
 		return Record{}, err
 	}
 	return s.GetEntry(ctx, app, out.Record.(Record).ID)
+}
+
+// LegacyEntry is an entry of the content model before grapesjs-storage
+// 1.x (a page of a template, its values in metadata as field.<name>).
+type LegacyEntry struct {
+	ID          string                     `json:"id"`
+	Name        string                     `json:"name"`
+	Slug        string                     `json:"slug"`
+	Status      string                     `json:"status"`
+	Version     int64                      `json:"version"`
+	PublishedAt *time.Time                 `json:"published_at"`
+	Values      map[string]json.RawMessage `json:"values"`
+}
+
+// LegacyEntries are the entries of the old template named (or with the id)
+// template, with their draft values: what clients of the old content API
+// (the gtr registry) move to data records with. Read only; it goes once
+// they have moved.
+func (s *Store) LegacyEntries(ctx context.Context, app, template string) ([]LegacyEntry, error) {
+	db, err := s.db()
+	if err != nil {
+		return nil, err
+	}
+	id := strings.ToLower(strings.TrimSpace(template))
+	if !UUIDLike(id) {
+		rows, err := db.QueryContext(ctx, `SELECT id FROM templates WHERE app_id = $1 AND lower(name) = $2 ORDER BY id LIMIT 1`, app, id)
+		if err != nil {
+			return nil, err
+		}
+		id = ""
+		if rows.Next() {
+			err = rows.Scan(&id)
+		}
+		rows.Close()
+		if err != nil {
+			return nil, err
+		}
+		if id == "" {
+			return []LegacyEntry{}, nil
+		}
+	}
+	recs, err := s.ListEntries(ctx, app, id)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]LegacyEntry, 0, len(recs))
+	for _, r := range recs {
+		vals, err := values(ctx, db, app, r.ID, "draft")
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, LegacyEntry{ID: r.ID, Name: r.Name, Slug: r.Slug, Status: r.Status, Version: r.Version,
+			PublishedAt: r.PublishedAt, Values: FieldValues(vals)})
+	}
+	return out, nil
 }

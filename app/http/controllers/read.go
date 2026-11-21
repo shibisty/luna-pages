@@ -166,6 +166,12 @@ type runtimes struct{ Forms, Theme string }
 
 func renderView(v store.View, rt runtimes) (Rendered, error) {
 	body := v.Body
+	if v.Storage != nil {
+		var err error
+		if body, err = render.FillStorage(v.Body, *v.Storage, store.SitePolicy(v.Settings)); err != nil {
+			return Rendered{}, err
+		}
+	}
 	if v.Entry {
 		var err error
 		if body, err = render.Fill(v.Body, store.RenderFields(v.Fields), store.FieldValues(v.Values),

@@ -128,14 +128,23 @@ grapesjs-storage 1.x's REST contract (`RestContentStore`, its openapi.yaml), und
   values, `storage.template`) or a standalone entry; draft and published values; a translatable
   field's value is an object by language code (`{"uk-ua": …, "en-gb": …}`);
 - a **data record** is a page with `data_of` (editor API): it takes the design of that page and
-  has its own data; deleting the page deletes its data records and the data of both;
+  has its own data; deleting the page deletes its data records and the data of both. It has no
+  HTML of its own: `/v1/render` fills the owner's published design with the record's published
+  data — the `data-storage-field` elements, the HTML grapesjs-storage gives each type; a
+  repeater's row design is its first `children / owner's rows` elements (the owner published
+  with at least one row). So a server can write records without the editor: `PUT` the page
+  (`data_of`, `slug`, `name`, SEO values), `PUT` its entry, publish the page (no body). A record
+  is live while its owner is;
+- publishing a page publishes its entry too (the entry's version stays, for the editor's
+  `If-Match`);
 - the site's **languages**: `{default, enabled}`.
 
 | Request | |
 |---|---|
 | `GET /v1/content/templates`, `GET /v1/content/templates/{id}` | templates (and `data` for one) |
 | `PUT /v1/content/templates/{id}`, `DELETE …` | `{name?, fields, data?}`; a delete leaves the entries |
-| `GET /v1/content/entries?template=`, `GET /v1/content/entries/{id}` | entries (values for one) |
+| `GET /v1/content/entries?template=&values=`, `GET /v1/content/entries/{id}` | entries (with `values=draft\|published` their values; one: the draft values) |
+| `GET /v1/content/legacy-entries?template=` | the old model's entries of a template (by name or id) with their values: for clients moving to data records (temporary) |
 | `PUT /v1/content/entries/{id}` | `{template_id, name?, slug?, values}`: values merge, `null` deletes a key; `If-Match` |
 | `DELETE /v1/content/entries/{id}`, `POST …/publish` | `If-Match`; publish makes the draft values the published ones |
 | `GET/PUT /v1/content/languages` | `404` until set |

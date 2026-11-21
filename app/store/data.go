@@ -253,8 +253,13 @@ func scanDataEntry(row scanner, withValues bool) (DataEntry, error) {
 	return e, nil
 }
 
-// DataEntries lists entries (of one template when given), without values.
-func (s *Store) DataEntries(ctx context.Context, app, template string) ([]DataEntry, error) {
+// DataEntries lists entries (of one template when given), without
+// values, or with the "draft" or "published" ones (with) as values: the
+// published ones of an entry never published are none.
+func (s *Store) DataEntries(ctx context.Context, app, template, with string) ([]DataEntry, error) {
+	if with != "" && with != "draft" && with != "published" {
+		return nil, invalid("values", `"draft" or "published".`)
+	}
 	db, err := s.db()
 	if err != nil {
 		return nil, err
@@ -271,9 +276,15 @@ func (s *Store) DataEntries(ctx context.Context, app, template string) ([]DataEn
 	defer rows.Close()
 	out := []DataEntry{}
 	for rows.Next() {
-		e, err := scanDataEntry(rows, false)
+		e, err := scanDataEntry(rows, with != "")
 		if err != nil {
 			return nil, err
+		}
+		if with == "published" {
+			e.Values = e.Published
+			if e.Values == nil {
+				e.Values = map[string]json.RawMessage{}
+			}
 		}
 		out = append(out, e)
 	}

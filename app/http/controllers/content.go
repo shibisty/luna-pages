@@ -83,14 +83,16 @@ func (h API) DeleteContentTemplate(c *web.Ctx) error {
 	return nil
 }
 
-// ContentEntries is GET …/content/entries?template=: without values.
+// ContentEntries is GET …/content/entries?template=&values=: without
+// values, or with the draft or published ones (values=draft|published).
 func (h API) ContentEntries(c *web.Ctx) error {
 	st, err := h.store()
 	if err != nil {
 		return err
 	}
 	a, _ := app(c)
-	list, err := st.DataEntries(c.Context(), a, strings.TrimSpace(c.R.URL.Query().Get("template")))
+	q := c.R.URL.Query()
+	list, err := st.DataEntries(c.Context(), a, strings.TrimSpace(q.Get("template")), q.Get("values"))
 	if err != nil {
 		return storeError(err)
 	}
@@ -212,4 +214,25 @@ func (h API) PutContentLanguages(c *web.Ctx) error {
 	h.cache.clear(a)
 	c.W.Header().Set("Cache-Control", "no-store")
 	return c.JSON(http.StatusOK, l)
+}
+
+// LegacyEntries is GET …/content/legacy-entries?template=: the entries of
+// the content model before grapesjs-storage 1.x, for clients moving to
+// data records (read only, temporary).
+func (h API) LegacyEntries(c *web.Ctx) error {
+	st, err := h.store()
+	if err != nil {
+		return err
+	}
+	a, _ := app(c)
+	t := strings.TrimSpace(c.R.URL.Query().Get("template"))
+	if t == "" {
+		return invalid("template", "Give the template's name or id.")
+	}
+	list, err := st.LegacyEntries(c.Context(), a, t)
+	if err != nil {
+		return storeError(err)
+	}
+	c.W.Header().Set("Cache-Control", "no-store")
+	return c.JSON(http.StatusOK, map[string]any{"items": list})
 }

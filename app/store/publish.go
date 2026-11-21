@@ -128,8 +128,11 @@ func (s *Store) Publish(ctx context.Context, app string, k Kind, id string, in P
 			}
 		}
 		entry := k == Page && cur.TemplateID != nil
+		// A data record shows its owner page's design with its own data
+		// (rendered then): it has no HTML of its own; what an editor sends is left.
+		record := k == Page && cur.DataOf != nil
 		var htmlOut, cssOut string
-		if !entry {
+		if !entry && !record {
 			if in.HTML == nil {
 				return invalid("html", "Send the HTML to publish (editor.getHtml()).")
 			}
@@ -164,10 +167,10 @@ func (s *Store) Publish(ctx context.Context, app string, k Kind, id string, in P
 				return err
 			}
 		}
-		if !entry && !p.CustomCode && render.HasCode(*in.HTML) {
+		if !entry && !record && !p.CustomCode && render.HasCode(*in.HTML) {
 			out.Warnings = append(out.Warnings, "Scripts and stylesheet links were left out: the site does not allow custom code (custom_code in the site's settings).")
 		}
-		if !entry {
+		if !entry && !record {
 			if out.Revision, err = addRevision(ctx, tx, app, k, id, htmlOut, cssOut, by); err != nil {
 				return err
 			}
@@ -178,6 +181,12 @@ func (s *Store) Publish(ctx context.Context, app string, k Kind, id string, in P
 			}
 			if _, err := tx.ExecContext(ctx, `INSERT INTO metadata (app_id, page_id, state, key, value)
 				SELECT app_id, page_id, 'published', key, value FROM metadata WHERE app_id = $1 AND page_id = $2 AND state = 'draft'`, app, id); err != nil {
+				return err
+			}
+			// The page's data (grapesjs-storage) goes live with it; its
+			// version stays (the editor's If-Match on the entry).
+			if _, err := tx.ExecContext(ctx, `UPDATE data_entries SET published = draft, published_at = now() AT TIME ZONE 'UTC'
+				WHERE app_id = $1 AND id = $2`, app, id); err != nil {
 				return err
 			}
 			if _, err := tx.ExecContext(ctx, `UPDATE pages SET status = 'published', published_at = now() AT TIME ZONE 'UTC',

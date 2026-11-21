@@ -582,12 +582,18 @@ paths:
       - content
       summary: List entries
       operationId: contentListEntries
-      description: Entries of a template (all without `template`); `values` may be left out.
+      description: Entries of a template (all without `template`), without values, or with the draft or published ones (`values`).
       parameters:
       - name: template
         in: query
         schema:
           type: string
+      - name: values
+        in: query
+        description: '`draft` or `published` (an entry never published: none).'
+        schema:
+          type: string
+          enum: [draft, published]
       responses:
         '200':
           description: The entries.
@@ -608,6 +614,48 @@ paths:
           $ref: '#/components/responses/KeyForbidden'
         '503':
           $ref: '#/components/responses/KeysUnavailable'
+  /v1/content/legacy-entries:
+    get:
+      tags:
+      - content
+      summary: List entries of the old content model
+      operationId: contentLegacyEntries
+      description: The entries (pages of a template, values as `field.<name>`) of the content model before grapesjs-storage 1.x, with their draft values, for clients moving to data records. Read only and temporary.
+      parameters:
+      - name: template
+        in: query
+        required: true
+        description: The old template's name or id.
+        schema:
+          type: string
+      responses:
+        '200':
+          description: The entries.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: {type: string}
+                        name: {type: string}
+                        slug: {type: string}
+                        status: {type: string}
+                        version: {type: integer}
+                        published_at: {type: string, format: date-time, nullable: true}
+                        values: {type: object, additionalProperties: true}
+                required:
+                - items
+        '401':
+          $ref: '#/components/responses/KeyInvalid'
+        '403':
+          $ref: '#/components/responses/KeyForbidden'
+        '422':
+          $ref: '#/components/responses/Invalid'
   /v1/content/entries/{id}:
     parameters:
     - $ref: '#/components/parameters/ContentID'
@@ -972,7 +1020,7 @@ components:
         layout_id: { type: string, format: uuid }
         template_id: { type: string, format: uuid }
         parent_id: { type: string, format: uuid }
-        data_of: { type: string, format: uuid, description: "A data record of grapesjs-storage 1.x: the page whose design it takes (deleted with it)." }
+        data_of: { type: string, format: uuid, description: "A data record of grapesjs-storage 1.x: the page whose design it takes (deleted with it). It has no HTML of its own: the render is the owner's published design with the record's published data (its entry) filled into the data-storage-field elements; publishing the record (no body needed) publishes its entry, and it is live while the owner is." }
         position: { type: integer }
         published_at: { type: string, format: date-time, description: When the page was last published (pages only; absent while a draft). }
         fields:

@@ -1,7 +1,14 @@
 package tests
 
 import (
+	"context"
+	"encoding/json"
+	"strings"
 	"testing"
+
+	"fullstack"
+
+	"luna-pages/app/store"
 )
 
 const (
@@ -119,4 +126,80 @@ func TestContentInternal(t *testing.T) {
 	in.GetJSON(base + "/entries").AssertOK().AssertJSONCount("items", 1)
 	w.as(w.writer).GetJSON("/v1/content/entries").AssertOK().AssertJSONCount("items", 1)
 	w.as(w.blog).GetJSON("/v1/content/entries").AssertOK().AssertJSONCount("items", 0) // another application
+}
+
+// A data record shows its owner page's design with its own values,
+// filled in by the server (a record a client wrote without the editor).
+func TestDataRecordRender(t *testing.T) {
+	w := newWorld(t)
+	c := w.as(w.writer)
+	fields := []map[string]any{
+		{"name": "name", "type": "text"},
+		{"name": "repository", "type": "url"},
+		{"name": "versions", "type": "repeater", "fields": []map[string]any{{"name": "version", "type": "text"}}},
+	}
+	c.PutJSON("/v1/content/templates/package", map[string]any{"name": "Package", "fields": fields}).AssertCreated()
+	c.PutJSON("/v1/editor/pages/"+homeID, map[string]any{"name": "Package", "slug": "/packages"}).AssertCreated()
+	c.PutJSON("/v1/content/entries/"+homeID, map[string]any{"template_id": "package", "values": map[string]any{
+		"name": "sample", "versions": []map[string]any{{"version": "1.0.0"}}}}).AssertCreated()
+	design := `<h1 data-storage-field="name" data-storage-type="text">sample</h1>` +
+		`<a data-storage-field="repository" data-storage-type="url" hidden=""></a>` +
+		`<ul data-storage-field="versions" data-storage-type="repeater"><li><span data-storage-field="version" data-storage-type="text">1.0.0</span></li></ul>`
+	c.PostJSON("/v1/editor/pages/"+homeID+"/publish", map[string]any{"html": design, "css": "h1{color:red}"}).AssertOK()
+	// publishing the page published its data
+	c.GetJSON("/v1/content/entries?template=package&values=published").AssertOK().AssertJSONPath("items.0.values.name", "sample")
+
+	// The record: no HTML of its own.
+	c.PutJSON("/v1/editor/pages/"+dataID, map[string]any{"name": "orm", "slug": "/packages/orm", "data_of": homeID,
+		"values": map[string]any{"seo.description": "An ORM"}}).AssertCreated()
+	c.PutJSON("/v1/content/entries/"+dataID, map[string]any{"template_id": "package", "name": "orm", "values": map[string]any{
+		"name": "orm", "repository": "https://github.com/shibisty/orm.go",
+		"versions": []map[string]any{{"version": "0.2.2"}, {"version": "0.2.1"}}}}).AssertCreated()
+	w.as(w.reader).GetJSON("/v1/render?slug=/packages/orm").AssertNotFound() // not published yet
+	c.PostJSON("/v1/editor/pages/"+dataID+"/publish", nil).AssertOK()
+	r := w.as(w.reader).GetJSON("/v1/render?slug=/packages/orm").AssertOK().AssertJSONPath("title", "orm").AssertJSONPath("seo.description", "An ORM")
+	htmlHas(t, r, []string{">orm</h1>", `href="https://github.com/shibisty/orm.go">https://github.com/shibisty/orm.go</a>`,
+		`<li><span data-storage-field="version" data-storage-type="text">0.2.2</span></li><li><span data-storage-field="version" data-storage-type="text">0.2.1</span></li>`},
+		"1.0.0", "hidden")
+	if css, _ := r.JSONPath("css"); !strings.Contains(css.(string), "color:red") {
+		t.Errorf("the owner's CSS: %v", css)
+	}
+
+	// New values show once published (the draft is not live).
+	e := c.GetJSON("/v1/content/entries/" + dataID).AssertOK()
+	c.WithHeader("If-Match", e.Header().Get("ETag")).PutJSON("/v1/content/entries/"+dataID, map[string]any{"values": map[string]any{"name": "orm2"}}).AssertOK()
+	htmlHas(t, w.as(w.reader).GetJSON("/v1/render?slug=/packages/orm").AssertOK(), []string{">orm</h1>"})
+	c.PostJSON("/v1/content/entries/"+dataID+"/publish", nil).AssertOK()
+	htmlHas(t, w.as(w.reader).GetJSON("/v1/render?slug=/packages/orm").AssertOK(), []string{">orm2</h1>"})
+	c.GetJSON("/v1/content/entries?values=draft&template=package").AssertOK().AssertJSONCount("items", 2)
+	c.GetJSON("/v1/content/entries?values=all").AssertUnprocessable()
+
+	// The owner unpublished: its records are not live either.
+	c.PostJSON("/v1/editor/pages/"+homeID+"/unpublish", nil).AssertOK()
+	w.as(w.reader).GetJSON("/v1/render?slug=/packages/orm").AssertNotFound()
+}
+
+// The old model's entries, for clients moving to data records.
+func TestLegacyEntries(t *testing.T) {
+	w := newWorld(t)
+	c := w.as(w.writer)
+	c.GetJSON("/v1/content/legacy-entries").AssertUnprocessable()
+	c.GetJSON("/v1/content/legacy-entries?template=Package").AssertOK().AssertJSONCount("items", 0)
+	st, err := fullstack.Make[*store.Store](w.app)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	if _, _, err := st.SaveTemplateFields(ctx, shopID, tmpl2ID, "Package", []store.Field{{Name: "name", Type: "text"}}, nil, "test"); err != nil {
+		t.Fatal(err)
+	}
+	slug := "/orm"
+	if _, _, err := st.PutEntry(ctx, shopID, entryID, store.EntryInput{TemplateID: tmpl2ID, Name: "orm", Slug: &slug,
+		Values: map[string]json.RawMessage{"name": json.RawMessage(`"orm"`), "versions": json.RawMessage(`[{"version":"0.2.2"}]`)}}, nil, "test"); err != nil {
+		t.Fatal(err)
+	}
+	c.GetJSON("/v1/content/legacy-entries?template=package").AssertOK().AssertJSONCount("items", 1).
+		AssertJSONPath("items.0.slug", "/orm").AssertJSONPath("items.0.values.name", "orm").AssertJSONPath("items.0.values.versions.0.version", "0.2.2")
+	c.GetJSON("/v1/content/legacy-entries?template=" + tmpl2ID).AssertOK().AssertJSONCount("items", 1)
+	w.as(w.reader).GetJSON("/v1/content/legacy-entries?template=Package").AssertForbidden()
 }
