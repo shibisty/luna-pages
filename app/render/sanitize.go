@@ -34,7 +34,8 @@ type Policy struct {
 	// forms are unwrapped and inputs dropped, as everywhere else.
 	Forms string
 
-	inForm bool // inside such a form: inputs, selects, textareas are kept
+	inForm   bool // inside such a form: inputs, selects, textareas are kept
+	inSearch bool // inside a search form: no passwords, no files
 }
 
 // DefaultIframeHosts: video players and maps.
@@ -242,10 +243,24 @@ func (p Policy) cleanNode(n *html.Node) []*html.Node {
 			return []*html.Node{n}
 		}
 	}
+	// A search form: GET to an address of the site itself (a path), so
+	// what is typed goes into the site's own URL; no passwords, no files
+	// (a form that asks for them is not a search, and could fish).
+	if name == "form" && !p.inForm && searchForm(n) {
+		q := p
+		q.inForm, q.inSearch = true, true
+		setChildren(n, q.clean(children(n)))
+		n.Attr = q.cleanAttrs(name, false, n.Attr)
+		n.Attr = setAttr(removeAttr(n.Attr, "enctype"), "method", "get")
+		return []*html.Node{n}
+	}
 	if formElements[name] && p.inForm && name != "form" {
 		kids := p.clean(children(n))
 		n.Attr = p.cleanAttrs(name, false, n.Attr)
 		if name == "input" && !inputTypes[strings.ToLower(attrValue(n.Attr, "type"))] {
+			return nil
+		}
+		if name == "input" && p.inSearch && !searchInputTypes[strings.ToLower(attrValue(n.Attr, "type"))] {
 			return nil
 		}
 		setChildren(n, kids)
@@ -331,6 +346,20 @@ var formIDRe = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
 // and no submit/reset (forms have a <button>).
 var inputTypes = set("", "text", "email", "tel", "url", "number", "password", "date", "time", "datetime-local",
 	"month", "week", "range", "color", "file", "hidden", "checkbox", "radio", "search")
+
+// searchInputTypes are the inputs a search form keeps.
+var searchInputTypes = set("", "text", "search", "hidden", "number", "checkbox", "radio", "date", "month", "range", "submit")
+
+// searchForm: <form method="get" action="/…">, said so: it sends to a
+// path of the same site, not anywhere else, and never posts. (A
+// grapesjs-forms form is luna-forms' to keep.)
+func searchForm(n *html.Node) bool {
+	if !strings.EqualFold(strings.TrimSpace(attr(n, "method")), "get") || attr(n, "data-gjsf-form") != "" {
+		return false
+	}
+	a := strings.TrimSpace(attr(n, "action"))
+	return a == "" || (strings.HasPrefix(a, "/") && !strings.HasPrefix(a, "//") && !strings.ContainsAny(a, "\\\n\t"))
+}
 
 // formAttrs fixes a kept form's own attributes: it posts to luna-forms.
 func (p Policy) formAttrs(id string, attrs []html.Attribute) []html.Attribute {

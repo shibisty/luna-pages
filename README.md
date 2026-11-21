@@ -71,9 +71,12 @@ backend), and under `/internal/v1/apps/{app}/editor` for the dashboard's editor.
 - **Forms** of grapesjs-forms (`<form data-gjsf-form="<id>">`) are kept with their inputs when
   `PAGES_FORMS_URL` (luna-forms' public address) is set: the form's `action` always becomes
   `<PAGES_FORMS_URL>/submit/<app>/forms/<id>/submissions` and `method` post, whatever the editor
-  wrote; `formaction`, `on*` and `input type=image|submit|reset` go. Any other form is unwrapped as
-  before. `/v1/render` lists luna-forms' script in `scripts` (and ends the HTML with it) when the
-  page has such a form.
+  wrote; `formaction`, `on*` and `input type=image|submit|reset` go. `/v1/render` lists
+  luna-forms' script in `scripts` (and ends the HTML with it) when the page has such a form.
+- **Search forms** — `<form method="get" action="/…">`, the method written out, the action a path
+  of the site — are kept with their inputs (text, search, hidden, number, checkbox, radio, date,
+  month, range; no passwords, no files): what is typed only ever goes into the site's own URL.
+  Any other form is unwrapped as before.
 - **The theme** of grapesjs-darkreader: the editor (luna-studio's) publishes its settings as data,
   `<script type="application/json" data-luna-darkreader>{…}</script>`, which is kept without custom
   code (valid JSON only, written back compact, without `src`). Such a page gets `/runtime/theme.js`
