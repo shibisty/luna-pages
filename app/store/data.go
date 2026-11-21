@@ -451,6 +451,15 @@ func (s *Store) DataLanguages(ctx context.Context, app string) (Languages, error
 
 // PutDataLanguages sets the site's languages; the default goes first.
 func (s *Store) PutDataLanguages(ctx context.Context, app string, l Languages) (Languages, error) {
+	if l.Default == "" && len(l.Enabled) == 0 {
+		// {default: "", enabled: []}: the site has no languages (grapesjs-storage clears them so).
+		db, err := s.db()
+		if err != nil {
+			return l, err
+		}
+		_, err = db.ExecContext(ctx, `UPDATE sites SET languages = NULL WHERE app_id = $1`, app)
+		return Languages{Enabled: []string{}}, err
+	}
 	if !LangRe.MatchString(l.Default) {
 		return l, invalid("default", "A language code with its region, e.g. uk-ua.")
 	}

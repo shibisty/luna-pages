@@ -92,6 +92,8 @@ func TestContentLanguages(t *testing.T) {
 	c.PutJSON("/v1/content/languages", map[string]any{"default": "uk-ua", "enabled": []string{"en-gb", "uk-ua", "en-gb"}}).AssertOK().
 		AssertJSONPath("enabled.0", "uk-ua").AssertJSONCount("enabled", 2)
 	c.GetJSON("/v1/content/languages").AssertOK().AssertJSONPath("default", "uk-ua")
+	c.PutJSON("/v1/content/languages", map[string]any{"default": "", "enabled": []string{}}).AssertOK().AssertJSONCount("enabled", 0)
+	c.GetJSON("/v1/content/languages").AssertNotFound()
 	w.as(w.blog).GetJSON("/v1/content/languages").AssertNotFound() // another application
 }
 
